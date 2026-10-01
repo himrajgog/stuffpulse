@@ -294,23 +294,31 @@ export const storageService = {
       updated = [task, ...tasks];
     }
     saveLocal(STORAGE_KEYS.TASKS, updated);
+    if (isFirebaseActive()) {
+      firestoreService.setDocumentWithId('tasks', task.id, task);
+    }
     return updated;
   },
   completeTaskWithProof(taskId, { proofPhoto, completionNotes }) {
     const tasks = this.getTasks();
+    let completedItem = null;
     const updated = tasks.map(t => {
       if (t.id === taskId) {
-        return {
+        completedItem = {
           ...t,
           status: 'Completed',
           proofPhoto,
           completionNotes,
           completedAt: new Date().toISOString(),
         };
+        return completedItem;
       }
       return t;
     });
     saveLocal(STORAGE_KEYS.TASKS, updated);
+    if (isFirebaseActive() && completedItem) {
+      firestoreService.setDocumentWithId('tasks', taskId, completedItem);
+    }
     return updated;
   },
 
