@@ -4,13 +4,15 @@ import { X, UserPlus, Save, Building, Phone, Mail, IndianRupee, CreditCard, Shie
 import { useApp } from '../context/AppContext';
 
 export const EmployeeModal = () => {
-  const { isEmployeeModalOpen, setIsEmployeeModalOpen, editingEmployee, saveEmployee } = useApp();
+  const { isEmployeeModalOpen, setIsEmployeeModalOpen, editingEmployee, saveEmployee, employees } = useApp();
 
   const [formData, setFormData] = useState({
     id: '',
     name: '',
     email: '',
     phone: '',
+    loginPin: '1234',
+    role: 'employee',
     designation: '',
     department: 'Sales & Field Ops',
     wageType: 'Monthly',
@@ -36,17 +38,22 @@ export const EmployeeModal = () => {
     if (editingEmployee) {
       setFormData({
         ...editingEmployee,
+        loginPin: editingEmployee.loginPin || '1234',
+        role: editingEmployee.role || 'employee',
         allowances: {
           special: editingEmployee.allowances?.special || 0,
           conveyance: editingEmployee.allowances?.conveyance || 0,
         }
       });
     } else {
+      const nextId = `EMP-${String((employees?.length || 0) + 1).padStart(3, '0')}`;
       setFormData({
-        id: '',
+        id: nextId,
         name: '',
         email: '',
         phone: '',
+        loginPin: '1234',
+        role: 'employee',
         designation: '',
         department: 'Sales & Field Ops',
         wageType: 'Monthly',
@@ -68,7 +75,7 @@ export const EmployeeModal = () => {
         status: 'Active',
       });
     }
-  }, [editingEmployee, isEmployeeModalOpen]);
+  }, [editingEmployee, isEmployeeModalOpen, employees]);
 
   if (!isEmployeeModalOpen) return null;
 
@@ -207,10 +214,64 @@ export const EmployeeModal = () => {
             </div>
           </div>
 
+          {/* Mobile Login Credentials & Access */}
+          <div className="bg-blue-50/60 border border-blue-200/80 rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-900 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-blue-600" />
+                <span>3. Mobile App Login ID & PIN</span>
+              </span>
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-mono">
+                Staff Authentication
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Employee ID / Staff Code</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.id}
+                  onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
+                  placeholder="e.g., EMP-031"
+                  className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2 text-xs font-mono font-black text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Login PIN / Password</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.loginPin}
+                  onChange={(e) => setFormData({ ...formData, loginPin: e.target.value })}
+                  placeholder="e.g., 1234"
+                  className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Access Role</label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="employee">Staff (Field & Punch Terminal)</option>
+                  <option value="manager">Manager (Approve Claims & Tasks)</option>
+                  <option value="admin">Administrator (Full Control)</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-blue-800/80 leading-snug">
+              Give this <strong>Employee ID</strong> and <strong>PIN</strong> to your team member so they can log in directly on their mobile phones.
+            </p>
+          </div>
+
           {/* Wage & Salary Configuration */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-              3. Wage Structure & Additions
+              4. Wage Structure & Additions
             </h3>
             
             <div className="bg-brand-50/50 p-4 rounded-2xl border border-brand-100 space-y-4">

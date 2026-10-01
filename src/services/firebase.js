@@ -12,7 +12,8 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy
+  orderBy,
+  onSnapshot
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -96,6 +97,22 @@ export const firestoreService = {
     } catch (err) {
       console.error(`Error reading ${collectionName} from Firestore:`, err);
       return null;
+    }
+  },
+
+  subscribeToCollection(collectionName, callback) {
+    if (!isConfigured || !firestoreDb) return () => {};
+    try {
+      const colRef = collection(firestoreDb, collectionName);
+      return onSnapshot(colRef, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(docs);
+      }, (err) => {
+        console.warn(`Firestore subscription warning on ${collectionName}:`, err.message);
+      });
+    } catch (err) {
+      console.warn(`Failed to subscribe to ${collectionName}:`, err.message);
+      return () => {};
     }
   },
 

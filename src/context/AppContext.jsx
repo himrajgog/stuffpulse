@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { storageService } from '../services/storageService';
 import { getTodayDateString } from '../utils/dateUtils';
 import { calculateEmployeePayroll, calculateAllPayrolls } from '../utils/payrollEngine';
-import { firebaseAuthService } from '../services/firebase';
+import { firebaseAuthService, firestoreService, isFirebaseActive } from '../services/firebase';
 import { INITIAL_TENANTS, INITIAL_SUPPORT_TICKETS } from '../services/superAdminData';
 import confetti from 'canvas-confetti';
 
@@ -91,6 +91,54 @@ export const AppProvider = ({ children }) => {
   const [expenses, setExpenses] = useState(() => storageService.getExpenses());
   const [loans, setLoans] = useState(() => storageService.getLoans());
   const [tasks, setTasks] = useState(() => storageService.getTasks());
+
+  // Real-time synchronization across mobile & desktop when Firebase is configured
+  useEffect(() => {
+    if (!isFirebaseActive()) return;
+
+    const unsubEmployees = firestoreService.subscribeToCollection('employees', (remoteEmployees) => {
+      if (remoteEmployees && remoteEmployees.length > 0) {
+        setEmployees(remoteEmployees);
+        localStorage.setItem('workpulse_employees', JSON.stringify(remoteEmployees));
+      }
+    });
+
+    const unsubAttendance = firestoreService.subscribeToCollection('attendance', (remoteAttendance) => {
+      if (remoteAttendance && remoteAttendance.length > 0) {
+        setAttendance(remoteAttendance);
+        localStorage.setItem('workpulse_attendance', JSON.stringify(remoteAttendance));
+      }
+    });
+
+    const unsubExpenses = firestoreService.subscribeToCollection('expenses', (remoteExpenses) => {
+      if (remoteExpenses && remoteExpenses.length > 0) {
+        setExpenses(remoteExpenses);
+        localStorage.setItem('workpulse_expenses', JSON.stringify(remoteExpenses));
+      }
+    });
+
+    const unsubTasks = firestoreService.subscribeToCollection('tasks', (remoteTasks) => {
+      if (remoteTasks && remoteTasks.length > 0) {
+        setTasks(remoteTasks);
+        localStorage.setItem('workpulse_tasks', JSON.stringify(remoteTasks));
+      }
+    });
+
+    const unsubLoans = firestoreService.subscribeToCollection('loans', (remoteLoans) => {
+      if (remoteLoans && remoteLoans.length > 0) {
+        setLoans(remoteLoans);
+        localStorage.setItem('workpulse_loans', JSON.stringify(remoteLoans));
+      }
+    });
+
+    return () => {
+      unsubEmployees();
+      unsubAttendance();
+      unsubExpenses();
+      unsubTasks();
+      unsubLoans();
+    };
+  }, []);
 
   // Suite Module State: 'payroll' | 'biz' | 'desk' | 'books'
   const [suiteModule, setSuiteModule] = useState(() => {
@@ -479,29 +527,116 @@ export const AppProvider = ({ children }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const loginUser = async ({ email, password, role = 'admin', employeeId = null, name = null }) => {
-    let authResult = { success: true };
-    if (password) {
-      authResult = await firebaseAuthService.login(email, password);
-    }
-    
-    const emp = employees.find(e => e.id === employeeId || e.email === email);
-    const finalUser = {
-      email,
-      role,
-      name: name || (role === 'admin' ? 'HR Administrator' : emp?.name || 'Staff Member'),
-      employeeId: employeeId || emp?.id || 'EMP-001',
-      avatar: emp?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    };
+  const loginUser = async ({ identifier, email, password, role = 'admin', employeeId = null, name = null }) => {
+    const rawId = (identifier || email || '').trim();
+    const cleanId = rawId.toLowerCase();
+    const cleanPass = (password || '').trim();
 
-    setCurrentUser(finalUser);
-    setUserRole(role);
-    if (finalUser.employeeId) {
-      setActiveEmployeeId(finalUser.employeeId);
+    // 1. Super Admin Check
+    if (cleanId === 'superadmin' || cleanId === 'superadmin@staffpulse.io') {
+      if (cleanPass && cleanPass !== 'super123') {
+        throw new Error('Invalid Super Admin password.');
+      }
+      const superUser = { email: 'superadmin@staffpulse.io', role: 'superadmin', name: 'Platform Owner' };
+      setCurrentUser(superUser);
+      setUserRole('superadmin');
+      localStorage.setItem('staffpulse_auth_user', JSON.stringify(superUser));
+      navigateTo('superadmin');
+      return superUser;
     }
-    localStorage.setItem('staffpulse_auth_user', JSON.stringify(finalUser));
+
+    // 2. Company Administrator Check
+    if (cleanId === 'admin' || cleanId === 'admin@apexcorp.com' || cleanId === (company?.email || '').toLowerCase()) {
+      if (cleanPass && cleanPass !== 'admin123' && cleanPass !== (company?.adminPassword || '')) {
+        throw new Error('Invalid Administrator password.');
+      }
+      const adminUser = {
+        email: cleanId.includes('@') ? cleanId : (company?.email || 'admin@apexcorp.com'),
+        role: 'admin',
+        name: company?.adminName || name || 'HR Administrator',
+      };
+      setCurrentUser(adminUser);
+      setUserRole('admin');
+      localStorage.setItem('staffpulse_auth_user', JSON.stringify(adminUser));
+      navigateTo('app');
+      return adminUser;
+    }
+
+    // 3. Employee ID, Email, or Phone Match
+    const matchedEmp = employees.find(e => 
+      e.id?.toLowerCase() === cleanId || 
+      e.email?.toLowerCase() === cleanId ||
+      e.phone?.replace(/\D/g, '') === cleanId.replace(/\D/g, '')
+    );
+
+    if (matchedEmp) {
+      const validPin = matchedEmp.loginPin || '1234';
+      if (cleanPass && cleanPass !== validPin && cleanPass !== 'staff123') {
+        throw new Error(`Incorrect PIN or password for ${matchedEmp.name}. (Default PIN is 1234)`);
+      }
+
+      const empRole = matchedEmp.role || 'employee';
+      const staffUser = {
+        email: matchedEmp.email,
+        role: empRole,
+        name: matchedEmp.name,
+        employeeId: matchedEmp.id,
+        avatar: matchedEmp.avatar,
+        designation: matchedEmp.designation,
+        department: matchedEmp.department,
+      };
+
+      setCurrentUser(staffUser);
+      setUserRole(empRole);
+      setActiveEmployeeId(matchedEmp.id);
+      localStorage.setItem('staffpulse_auth_user', JSON.stringify(staffUser));
+      navigateTo('app');
+      return staffUser;
+    }
+
+    // 4. Fallback if user explicitly passed an employeeId (e.g. fast demo login button)
+    if (employeeId) {
+      const emp = employees.find(e => e.id === employeeId);
+      const user = {
+        email: emp?.email || `${employeeId.toLowerCase()}@staffpulse.io`,
+        role: role,
+        name: emp?.name || name || 'Staff Member',
+        employeeId: employeeId,
+        avatar: emp?.avatar,
+      };
+      setCurrentUser(user);
+      setUserRole(role);
+      setActiveEmployeeId(employeeId);
+      localStorage.setItem('staffpulse_auth_user', JSON.stringify(user));
+      navigateTo('app');
+      return user;
+    }
+
+    throw new Error(`No account found matching "${rawId}". Enter your Employee ID (e.g. EMP-001) or Email.`);
+  };
+
+  const registerCompany = ({ companyName, adminName, email, phone, password }) => {
+    const updatedCompany = {
+      ...company,
+      name: companyName,
+      email,
+      phone,
+      adminName,
+      adminPassword: password,
+    };
+    storageService.saveCompany(updatedCompany);
+    setCompany(updatedCompany);
+
+    const adminUser = {
+      email,
+      role: 'admin',
+      name: adminName,
+    };
+    setCurrentUser(adminUser);
+    setUserRole('admin');
+    localStorage.setItem('staffpulse_auth_user', JSON.stringify(adminUser));
     navigateTo('app');
-    return finalUser;
+    showToast(`🏢 Welcome ${companyName}! Office workspace initialized.`, 'success');
   };
 
   const logoutUser = async () => {
@@ -658,6 +793,7 @@ export const AppProvider = ({ children }) => {
         currentUser,
         navigateTo,
         loginUser,
+        registerCompany,
         logoutUser,
         // Super Admin & Multi-Tenancy
         tenants,
