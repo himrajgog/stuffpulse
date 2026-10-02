@@ -20,7 +20,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { isFirebaseActive } from '../services/firebase';
 
-export const Navbar = ({ onToggleSidebar }) => {
+export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
   const {
     company,
     selectedDate,
@@ -30,7 +30,6 @@ export const Navbar = ({ onToggleSidebar }) => {
     userRole,
     setUserRole,
     setIsPunchModalOpen,
-    setIsFirebaseConfigModalOpen,
     employees,
     activeEmployeeId,
     setActiveEmployeeId,
@@ -57,40 +56,47 @@ export const Navbar = ({ onToggleSidebar }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const isConnected = isFirebaseActive();
+  const handleSidebarToggle = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      if (onToggleSidebar) onToggleSidebar();
+    } else {
+      if (onToggleCollapse) onToggleCollapse();
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 lg:px-6 py-3 transition-all">
       <div className="flex items-center justify-between gap-3">
-        {/* Left: Mobile Menu Toggle & Brand */}
+        {/* Left: Collapsible Sidebar Toggle & Brand */}
         <div className="flex items-center gap-3">
           <button
-            onClick={onToggleSidebar}
-            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden focus:outline-none focus:ring-2 focus:ring-brand-500"
-            aria-label="Toggle Menu"
+            onClick={handleSidebarToggle}
+            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition cursor-pointer"
+            aria-label="Toggle Sidebar Navigation"
+            title={isCollapsed ? "Expand Sidebar (Full Navigation)" : "Collapse Sidebar (Full-Screen Workspace)"}
           >
             <Menu className="w-5 h-5" />
           </button>
 
           <button
             onClick={() => navigateTo('landing')}
-            className="flex items-center gap-2.5 text-left group"
-            title="Go to Public Landing Page"
+            className="flex items-center gap-2.5 text-left group cursor-pointer"
+            title="Go to Velo HR Public Landing Page"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition">
-              <span className="font-extrabold text-lg tracking-wider">APX</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition">
+              <span className="font-black text-base tracking-wider">VHR</span>
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-bold text-slate-900 text-base leading-tight tracking-tight group-hover:text-brand-600 transition">
-                  {company.brandName || "StaffPulse"}
+                <h1 className="font-extrabold text-slate-900 text-base leading-tight tracking-tight group-hover:text-brand-600 transition">
+                  {company.brandName || "Velo HR"}
                 </h1>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-brand-100 text-brand-800">
-                  MVP PRO
+                <span className="text-[9px] uppercase font-black tracking-widest px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200/60">
+                  ENTERPRISE
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block truncate max-w-[200px]">
-                Attendance & Payroll Engine
+              <p className="text-xs text-slate-500 hidden sm:block truncate max-w-[220px]">
+                Payroll & Attendance Suite
               </p>
             </div>
           </button>
@@ -119,7 +125,7 @@ export const Navbar = ({ onToggleSidebar }) => {
           {/* Quick Punch Button */}
           <button
             onClick={() => setIsPunchModalOpen(true)}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-700 hover:to-emerald-700 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-brand-500/25 transition active:scale-95"
+            className="flex items-center gap-1.5 bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-700 hover:to-emerald-700 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-xl shadow-md shadow-brand-500/25 transition active:scale-95 cursor-pointer"
           >
             <UserCheck className="w-4 h-4" />
             <span>Clock In / Out</span>
@@ -165,39 +171,23 @@ export const Navbar = ({ onToggleSidebar }) => {
             </div>
           )}
 
-          {/* Firebase Connection Status */}
-          <button
-            onClick={() => setIsFirebaseConfigModalOpen(true)}
-            title={isConnected ? 'Firebase Connected' : 'Local-First Mode (Click to connect Firebase)'}
-            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
-              isConnected
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-            }`}
-          >
-            {isConnected ? (
-              <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-            ) : (
-              <CloudOff className="w-3.5 h-3.5 text-amber-600" />
-            )}
-            <span className="hidden xl:inline">{isConnected ? 'Cloud Synced' : 'Demo Local'}</span>
-          </button>
-
-          {/* Super Admin HQ Switcher */}
-          <button
-            onClick={() => navigateTo('superadmin')}
-            title="Open Platform Owner & Super Admin Console"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-900 to-indigo-900 text-amber-300 border border-purple-700/80 hover:from-purple-800 hover:to-indigo-800 transition shadow-xs"
-          >
-            <Crown className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Super Admin</span>
-          </button>
+          {/* Super Admin HQ Switcher - ONLY visible to Master Super Admin */}
+          {currentUser?.role === 'superadmin' && (
+            <button
+              onClick={() => navigateTo('superadmin')}
+              title="Open Platform Owner & Super Admin Console"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-900 to-indigo-900 text-amber-300 border border-purple-700/80 hover:from-purple-800 hover:to-indigo-800 transition shadow-xs cursor-pointer"
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Super Admin HQ</span>
+            </button>
+          )}
 
           {/* Website / Landing Page Switcher */}
           <button
             onClick={() => navigateTo('landing')}
-            title="View Public Landing Page"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition"
+            title="View Public Velo HR Landing Page"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition cursor-pointer"
           >
             <Globe className="w-3.5 h-3.5 text-slate-500" />
             <span className="hidden md:inline">Website</span>
@@ -207,7 +197,7 @@ export const Navbar = ({ onToggleSidebar }) => {
           <button
             onClick={logoutUser}
             title="Sign Out of Portal"
-            className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition"
+            className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>

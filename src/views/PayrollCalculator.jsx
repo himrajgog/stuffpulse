@@ -19,6 +19,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { calculateAllPayrolls } from '../utils/payrollEngine';
 import { formatCurrency, getMonthName } from '../utils/dateUtils';
+import { SubscriptionPaywall } from '../components/SubscriptionPaywall';
 
 export const PayrollCalculator = () => {
   const {
@@ -33,6 +34,8 @@ export const PayrollCalculator = () => {
     setSelectedYear,
     openPayslip,
     showToast,
+    openReportsExport,
+    isSubscriptionActive,
   } = useApp();
 
   const [search, setSearch] = useState('');
@@ -157,6 +160,31 @@ export const PayrollCalculator = () => {
     showToast('Exported payroll spreadsheet summary to CSV!', 'success');
   };
 
+  // Subscription Paywall Engine Gate
+  if (!isSubscriptionActive()) {
+    return (
+      <div className="space-y-6 pb-20 lg:pb-10">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-extrabold text-slate-900">
+                Automated Payroll & Salary Calculation Engine
+              </h2>
+              <span className="text-xs bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">
+                Subscription Inactive
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Calculates payable days, deducts unpaid absences, includes active loan EMIs & approved expense reimbursements
+            </p>
+          </div>
+        </div>
+
+        <SubscriptionPaywall />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-20 lg:pb-10">
       
@@ -199,13 +227,23 @@ export const PayrollCalculator = () => {
             </button>
           </div>
 
-          {/* Export CSV */}
+          {/* Bulk Reports & Export Modal Trigger */}
+          <button
+            onClick={() => openReportsExport('payroll')}
+            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-xs cursor-pointer"
+            title="Download payroll summary, bank disbursement statement, or EPF/ESIC statutory files"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+            <span>Reports & Export</span>
+          </button>
+
+          {/* Quick Export CSV */}
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition shadow-xs"
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition shadow-xs cursor-pointer"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Export CSV</span>
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Quick CSV</span>
           </button>
         </div>
       </div>

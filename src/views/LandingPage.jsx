@@ -41,42 +41,54 @@ import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/dateUtils';
 
 export const LandingPage = () => {
-  const { navigateTo, company, employees, showToast } = useApp();
+  const {
+    navigateTo,
+    company,
+    employees,
+    showToast,
+    requestDemoAccess,
+    enterSandboxDemo
+  } = useApp();
 
   // State
   const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'yearly'
   const [activeFaq, setActiveFaq] = useState(null);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+  const [demoStep, setDemoStep] = useState('capture'); // 'capture' | 'credentials'
+  const [generatedCredentials, setGeneratedCredentials] = useState(null);
   const [demoFormData, setDemoFormData] = useState({
     name: '',
+    businessName: '',
     phone: '',
-    company: '',
+    email: '',
     staffCount: '25-50',
   });
   const [interactivePunchStatus, setInteractivePunchStatus] = useState('Punched In');
 
   const handleDemoSubmit = (e) => {
     e.preventDefault();
-    if (!demoFormData.phone || demoFormData.phone.length < 10) {
-      showToast('Please provide a valid 10-digit mobile number', 'error');
+    if (!demoFormData.name.trim() || !demoFormData.businessName.trim() || !demoFormData.phone.trim()) {
+      showToast('Please provide your name, business name, and phone number', 'error');
       return;
     }
-    showToast(`🎉 Demo scheduled! Our onboarding team will call ${demoFormData.phone} within 15 minutes.`, 'success');
-    setIsDemoModalOpen(false);
+    const result = requestDemoAccess(demoFormData);
+    setGeneratedCredentials(result.credentials);
+    setDemoStep('credentials');
+    showToast('🎉 Sandboxed Demo Credentials Generated!', 'success');
   };
 
   const faqs = [
     {
       q: 'How does GPS and geofencing prevent attendance fraud?',
-      a: 'StaffPulse establishes a tamper-proof virtual perimeter (customizable down to 50 meters) around your office, warehouse, or client site. When employees punch in via mobile, the app performs real-time coordinate validation, IP verification, and anti-spoofing mock location detection to guarantee physical presence.',
+      a: 'Velo HR establishes a tamper-proof virtual perimeter (customizable down to 50 meters) around your office, warehouse, or client site. When employees punch in via mobile, the app performs real-time coordinate validation, IP verification, and anti-spoofing mock location detection to guarantee physical presence.',
     },
     {
-      q: 'Does StaffPulse automatically calculate Indian PF, ESI, and Professional Tax?',
-      a: 'Yes, 100%! StaffPulse includes a built-in Indian statutory engine that automatically deducts Employee Provident Fund (12% of basic up to statutory ceiling), ESIC (0.75% for eligible wages), and state-specific Professional Tax (PT). You can generate compliant payslips in 1-click.',
+      q: 'Does Velo HR automatically calculate Indian PF, ESI, and Professional Tax?',
+      a: 'Yes, 100%! Velo HR includes a built-in Indian statutory engine that automatically deducts Employee Provident Fund (12% of basic up to statutory ceiling), ESIC (0.75% for eligible wages), and state-specific Professional Tax (PT). You can generate compliant payslips in 1-click.',
     },
     {
       q: 'Can we support both daily-wage and monthly-salaried workers in one company?',
-      a: 'Absolutely. StaffPulse was specifically engineered for hybrid workforces. You can designate workers as Monthly Salaried or Daily Wage. For daily-wage workers, pay is computed dynamically: (Daily Rate × Present Days Worked) + Overtime.',
+      a: 'Absolutely. Velo HR was specifically engineered for hybrid workforces. You can designate workers as Monthly Salaried or Daily Wage. For daily-wage workers, pay is computed dynamically: (Daily Rate × Present Days Worked) + Overtime.',
     },
     {
       q: 'How do field expense claims and loan EMIs sync into payroll?',
@@ -84,7 +96,7 @@ export const LandingPage = () => {
     },
     {
       q: 'Is our company data isolated from other organizations?',
-      a: 'Yes. StaffPulse runs on a strict multi-tenant architecture. Every employee record, punch log, expense voucher, and salary slip is partitioned by companyId in live Firebase Firestore. Organization data is strictly private and isolated.',
+      a: 'Yes. Velo HR runs on a strict multi-tenant architecture. Every employee record, punch log, expense voucher, and salary slip is partitioned by companyId in live Firebase Firestore. Organization data is strictly private and isolated.',
     },
   ];
 
@@ -121,19 +133,19 @@ export const LandingPage = () => {
               className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
             >
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition">
-                <Activity className="w-5 h-5 text-white" />
+                <span className="font-black text-sm tracking-wider">VHR</span>
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-                    Staff<span className="text-blue-600">Pulse</span>
+                    Velo <span className="text-blue-600">HR</span>
                   </span>
                   <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200 hidden sm:inline">
-                    PRO SaaS
+                    ENTERPRISE
                   </span>
                 </div>
                 <span className="text-[10px] font-medium text-slate-500 -mt-0.5 hidden sm:block">
-                  Workforce & Payroll OS
+                  Payroll & Attendance Suite
                 </span>
               </div>
             </button>
@@ -150,14 +162,16 @@ export const LandingPage = () => {
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-2.5 sm:gap-3">
-            {/* Super Admin Quick Portal Access */}
+            {/* Request Demo Trigger */}
             <button
-              onClick={() => navigateTo('superadmin')}
-              title="Super Admin HQ"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 transition cursor-pointer"
+              onClick={() => {
+                setDemoStep('capture');
+                setIsDemoModalOpen(true);
+              }}
+              className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 px-3.5 py-2 rounded-xl transition cursor-pointer"
             >
-              <Crown className="w-3.5 h-3.5 text-purple-600" />
-              <span>Super Admin</span>
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <span>Request Demo</span>
             </button>
 
             {/* Login Button */}
@@ -221,19 +235,22 @@ export const LandingPage = () => {
               </button>
 
               <button
-                onClick={() => navigateTo('app')}
+                onClick={() => {
+                  setDemoStep('capture');
+                  setIsDemoModalOpen(true);
+                }}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-slate-900 font-bold text-sm px-6 py-4 rounded-2xl border border-stone-300 transition active:scale-95 cursor-pointer shadow-sm hover:shadow"
               >
-                <Play className="w-4 h-4 text-blue-600 fill-blue-600" />
-                <span>Launch Live App Demo</span>
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span>Request Demo Access</span>
               </button>
 
               <button
-                onClick={() => setIsDemoModalOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 px-4 py-3 rounded-xl transition"
+                onClick={() => navigateTo('login')}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 px-4 py-3 rounded-xl transition cursor-pointer"
               >
-                <Phone className="w-3.5 h-3.5 text-amber-500" />
-                <span>Schedule a 10-Min Demo</span>
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Client Sign In</span>
               </button>
             </div>
 
@@ -863,7 +880,7 @@ export const LandingPage = () => {
                 Statutory deductions automated to the last rupee.
               </h2>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Avoid labor penalties, EPFO notices, and audit stress. StaffPulse maintains state-by-state wage rules, automated rounding, and pre-formatted ECR and ESIC return files.
+                Avoid labor penalties, EPFO notices, and audit stress. Velo HR maintains state-by-state wage rules, automated rounding, and pre-formatted ECR and ESIC return files.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
@@ -976,7 +993,7 @@ export const LandingPage = () => {
               Frequently Asked Questions
             </h2>
             <p className="text-xs sm:text-sm text-slate-500">
-              Everything you need to know about setting up StaffPulse in your business.
+              Everything you need to know about setting up Velo HR in your business.
             </p>
           </div>
 
@@ -1021,7 +1038,7 @@ export const LandingPage = () => {
           </h2>
 
           <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto">
-            Join hundreds of forward-thinking operations managers and business owners who switched to StaffPulse. Free 14-day trial, zero setup fees.
+            Join hundreds of forward-thinking operations managers and business owners who switched to Velo HR. Free 14-day trial, zero setup fees.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -1051,10 +1068,10 @@ export const LandingPage = () => {
             {/* Col 1: Brand Info */}
             <div className="col-span-2 space-y-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold">
-                  <Activity className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs">
+                  VHR
                 </div>
-                <span className="text-xl font-black text-slate-900">Staff<span className="text-blue-600">Pulse</span></span>
+                <span className="text-xl font-black text-slate-900">Velo <span className="text-blue-600">HR</span></span>
               </div>
               <p className="text-slate-500 text-xs max-w-sm leading-relaxed">
                 The high-velocity workforce attendance and automated statutory payroll platform for multi-location enterprises, warehouses, and field teams.
@@ -1073,7 +1090,7 @@ export const LandingPage = () => {
                 <li><a href="#features" className="hover:text-blue-600 transition">Salary Calculator</a></li>
                 <li><a href="#features" className="hover:text-blue-600 transition">Expense Claims</a></li>
                 <li><a href="#features" className="hover:text-blue-600 transition">Loan & EMI Engine</a></li>
-                <li><button onClick={() => navigateTo('app')} className="hover:text-blue-600 transition text-left cursor-pointer">Live Demo Portal</button></li>
+                <li><button onClick={() => { setDemoStep('capture'); setIsDemoModalOpen(true); }} className="hover:text-blue-600 transition text-left cursor-pointer">Request Demo Sandbox</button></li>
               </ul>
             </div>
 
@@ -1103,106 +1120,185 @@ export const LandingPage = () => {
 
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
             <div>
-              © 2026 StaffPulse Technologies Inc. All rights reserved. Precision Payroll & Attendance Architecture.
+              © 2026 Velo HR Technologies Inc. All rights reserved. Precision Payroll & Attendance Suite.
             </div>
             <div className="flex items-center gap-4">
-              <span>Made for Indian Businesses</span>
+              <span>Enterprise Ready</span>
               <span>•</span>
-              <span>256-Bit Bank Grade Security</span>
+              <span>Multi-Tenant Firestore Cloud</span>
+              <span>•</span>
+              <span>Statutory Compliance Engine</span>
             </div>
           </div>
 
         </div>
       </footer>
 
-      {/* 10. QUICK DEMO SCHEDULER MODAL */}
+      {/* 10. CLIENT / DEMO HYBRID ACCESS GATEWAY MODAL */}
       {isDemoModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 shadow-2xl relative">
+          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 shadow-2xl relative animate-in fade-in">
             <button
-              onClick={() => setIsDemoModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-stone-100 transition"
+              onClick={() => {
+                setIsDemoModalOpen(false);
+                setDemoStep('capture');
+              }}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-stone-100 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-bold">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>1-on-1 Product Demo</span>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900">Schedule a 15-Minute Tour</h3>
-              <p className="text-xs text-slate-500">
-                See how StaffPulse completely automates attendance and payroll for your business.
-              </p>
-            </div>
+            {demoStep === 'capture' ? (
+              <>
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-bold">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Instant Sandbox Access</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">Request Velo HR Demo Access</h3>
+                  <p className="text-xs text-slate-500">
+                    Provide your details to receive temporary, sandboxed read-only credentials to explore the platform.
+                  </p>
+                </div>
 
-            <form onSubmit={handleDemoSubmit} className="space-y-3.5">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Your Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ramesh Verma"
-                  value={demoFormData.name}
-                  onChange={(e) => setDemoFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                <form onSubmit={handleDemoSubmit} className="space-y-3.5">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      Your Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Verma"
+                      value={demoFormData.name}
+                      onChange={(e) => setDemoFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Mobile Number (WhatsApp)
-                </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. 9876543210"
-                  value={demoFormData.phone}
-                  onChange={(e) => setDemoFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      Business / Organization Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Apex Global Logistics"
+                      value={demoFormData.businessName}
+                      onChange={(e) => setDemoFormData(prev => ({ ...prev, businessName: e.target.value }))}
+                      className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Company / Business Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Apex Logistics Jaipur"
-                  value={demoFormData.company}
-                  onChange={(e) => setDemoFormData(prev => ({ ...prev, company: e.target.value }))}
-                  className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Mobile Phone
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="9876543210"
+                        value={demoFormData.phone}
+                        onChange={(e) => setDemoFormData(prev => ({ ...prev, phone: e.target.value }))}
+                        className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                        Staff Size
+                      </label>
+                      <select
+                        value={demoFormData.staffCount}
+                        onChange={(e) => setDemoFormData(prev => ({ ...prev, staffCount: e.target.value }))}
+                        className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                      >
+                        <option value="1-15">1 - 15 Staff</option>
+                        <option value="16-50">16 - 50 Staff</option>
+                        <option value="51-200">51 - 200 Staff</option>
+                        <option value="200+">200+ Enterprise</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Total Staff Count
-                </label>
-                <select
-                  value={demoFormData.staffCount}
-                  onChange={(e) => setDemoFormData(prev => ({ ...prev, staffCount: e.target.value }))}
-                  className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      Official Work Email (Optional)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. ramesh@apexlogistics.com"
+                      value={demoFormData.email}
+                      onChange={(e) => setDemoFormData(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full bg-[#FAF8F5] border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-black text-xs sm:text-sm shadow-md shadow-indigo-600/25 transition active:scale-95 cursor-pointer mt-2"
+                  >
+                    Generate Sandboxed Demo Credentials
+                  </button>
+                </form>
+              </>
+            ) : (
+              <div className="space-y-5 animate-in fade-in">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200 shadow-sm">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+
+                <div className="text-center space-y-1">
+                  <h3 className="text-xl font-bold text-slate-900">Sandbox Access Granted!</h3>
+                  <p className="text-xs text-slate-500">
+                    Your temporary credentials for a read-only sandboxed workspace have been created:
+                  </p>
+                </div>
+
+                {/* Credentials Card */}
+                <div className="bg-[#FAF8F5] p-4 rounded-2xl border border-stone-200 space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                    <span className="font-semibold text-slate-500">Company Name:</span>
+                    <span className="font-bold text-slate-900">{generatedCredentials?.businessName || demoFormData.businessName}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                    <span className="font-semibold text-slate-500">Demo User ID:</span>
+                    <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {generatedCredentials?.email}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                    <span className="font-semibold text-slate-500">Demo Password:</span>
+                    <span className="font-mono font-bold text-slate-900 bg-stone-100 px-2 py-0.5 rounded">
+                      {generatedCredentials?.password}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] text-amber-700 pt-1">
+                    <span className="font-semibold">Validity:</span>
+                    <span className="font-bold">24-Hour Sandboxed Trial</span>
+                  </div>
+                </div>
+
+                {/* Direct Entry Button */}
+                <button
+                  onClick={() => enterSandboxDemo(generatedCredentials)}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-extrabold text-sm shadow-md shadow-indigo-600/25 transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <option value="1-15">1 - 15 Employees</option>
-                  <option value="16-50">16 - 50 Employees</option>
-                  <option value="51-200">51 - 200 Employees</option>
-                  <option value="200+">200+ Enterprise</option>
-                </select>
-              </div>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Enter Sandboxed Demo Environment</span>
+                </button>
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-black text-xs sm:text-sm shadow-md shadow-indigo-600/25 transition active:scale-95 cursor-pointer mt-2"
-              >
-                Confirm Callback Request
-              </button>
-            </form>
+                <button
+                  onClick={() => {
+                    setIsDemoModalOpen(false);
+                    navigateTo('login');
+                  }}
+                  className="w-full py-2.5 rounded-xl text-slate-600 hover:text-slate-900 text-xs font-bold transition cursor-pointer text-center"
+                >
+                  Or sign in with existing client account
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

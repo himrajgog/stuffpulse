@@ -17,11 +17,10 @@ export const AppProvider = ({ children }) => {
       if (hash === '#app' || hash === '#workspace') return 'app';
       if (hash === '#superadmin') return 'superadmin';
       if (hash === '#onboarding' || hash === '#pricing') return 'payroll_onboarding';
-      if (hash.startsWith('#coming-soon')) return 'coming_soon';
-      if (hash && (hash.includes('features') || hash.includes('demo') || hash.includes('testimonials') || hash.includes('landing'))) {
+      if (hash && (hash.includes('features') || hash.includes('pricing') || hash.includes('compliance') || hash.includes('landing'))) {
         return 'landing';
       }
-      const saved = localStorage.getItem('staffpulse_app_mode');
+      const saved = localStorage.getItem('velohr_app_mode');
       return saved || 'landing';
     }
     return 'landing';
@@ -38,9 +37,7 @@ export const AppProvider = ({ children }) => {
         setAppMode('superadmin');
       } else if (hash === '#onboarding') {
         setAppMode('payroll_onboarding');
-      } else if (hash.startsWith('#coming-soon')) {
-        setAppMode('coming_soon');
-      } else if (hash === '#landing' || hash === '' || hash.includes('features') || hash.includes('demo') || hash.includes('testimonials')) {
+      } else if (hash === '#landing' || hash === '' || hash.includes('features') || hash.includes('pricing') || hash.includes('compliance')) {
         setAppMode('landing');
       }
     };
@@ -52,7 +49,7 @@ export const AppProvider = ({ children }) => {
   // Super Admin Multi-Tenant State
   const [tenants, setTenants] = useState(() => {
     try {
-      const saved = localStorage.getItem('staffpulse_tenants');
+      const saved = localStorage.getItem('velohr_tenants');
       return saved ? JSON.parse(saved) : INITIAL_TENANTS;
     } catch {
       return INITIAL_TENANTS;
@@ -61,7 +58,7 @@ export const AppProvider = ({ children }) => {
 
   const [supportTickets, setSupportTickets] = useState(() => {
     try {
-      const saved = localStorage.getItem('staffpulse_support_tickets');
+      const saved = localStorage.getItem('velohr_support_tickets');
       return saved ? JSON.parse(saved) : INITIAL_SUPPORT_TICKETS;
     } catch {
       return INITIAL_SUPPORT_TICKETS;
@@ -73,14 +70,14 @@ export const AppProvider = ({ children }) => {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('staffpulse_auth_user');
+      const saved = localStorage.getItem('velohr_auth_user');
       return saved ? JSON.parse(saved) : {
-        email: 'admin@apexcorp.com',
+        email: 'admin@company.com',
         role: 'admin',
-        name: 'HR Administrator',
+        name: 'Company Administrator',
       };
     } catch {
-      return { email: 'admin@apexcorp.com', role: 'admin', name: 'HR Administrator' };
+      return { email: 'admin@company.com', role: 'admin', name: 'Company Administrator' };
     }
   });
 
@@ -117,27 +114,27 @@ export const AppProvider = ({ children }) => {
 
     const unsubEmployees = firestoreService.subscribeToCollection('employees', (remoteEmployees) => {
       setEmployees(remoteEmployees || []);
-      localStorage.setItem(`staffpulse_employees_${currentCompanyId}`, JSON.stringify(remoteEmployees || []));
+      localStorage.setItem(`velohr_employees_${currentCompanyId}`, JSON.stringify(remoteEmployees || []));
     }, currentCompanyId);
 
     const unsubAttendance = firestoreService.subscribeToCollection('attendance', (remoteAttendance) => {
       setAttendance(remoteAttendance || []);
-      localStorage.setItem(`staffpulse_attendance_${currentCompanyId}`, JSON.stringify(remoteAttendance || []));
+      localStorage.setItem(`velohr_attendance_${currentCompanyId}`, JSON.stringify(remoteAttendance || []));
     }, currentCompanyId);
 
     const unsubExpenses = firestoreService.subscribeToCollection('expenses', (remoteExpenses) => {
       setExpenses(remoteExpenses || []);
-      localStorage.setItem(`staffpulse_expenses_${currentCompanyId}`, JSON.stringify(remoteExpenses || []));
+      localStorage.setItem(`velohr_expenses_${currentCompanyId}`, JSON.stringify(remoteExpenses || []));
     }, currentCompanyId);
 
     const unsubTasks = firestoreService.subscribeToCollection('tasks', (remoteTasks) => {
       setTasks(remoteTasks || []);
-      localStorage.setItem(`staffpulse_tasks_${currentCompanyId}`, JSON.stringify(remoteTasks || []));
+      localStorage.setItem(`velohr_tasks_${currentCompanyId}`, JSON.stringify(remoteTasks || []));
     }, currentCompanyId);
 
     const unsubLoans = firestoreService.subscribeToCollection('loans', (remoteLoans) => {
       setLoans(remoteLoans || []);
-      localStorage.setItem(`staffpulse_loans_${currentCompanyId}`, JSON.stringify(remoteLoans || []));
+      localStorage.setItem(`velohr_loans_${currentCompanyId}`, JSON.stringify(remoteLoans || []));
     }, currentCompanyId);
 
     // Refresh platform-wide stats for Super Admin
@@ -154,15 +151,10 @@ export const AppProvider = ({ children }) => {
     };
   }, [currentCompanyId]);
 
-  // Suite Module State: 'payroll' | 'biz' | 'desk' | 'books'
-  const [suiteModule, setSuiteModule] = useState(() => {
-    return localStorage.getItem('staffpulse_suite_module') || 'payroll';
-  });
-
   // Subscription Gateway State
   const [subscription, setSubscription] = useState(() => {
     try {
-      const saved = localStorage.getItem('staffpulse_subscription');
+      const saved = localStorage.getItem('velohr_subscription');
       return saved ? JSON.parse(saved) : { active: true, tier: 'pro', planName: 'Pro Growth' };
     } catch {
       return { active: true, tier: 'pro', planName: 'Pro Growth' };
@@ -450,44 +442,67 @@ export const AppProvider = ({ children }) => {
     showToast('Reset tenant workspace to clean slate.', 'info');
   };
 
-  // --- Suite Switcher & Onboarding Actions ---
-  const switchSuiteModule = (moduleKey) => {
-    setSuiteModule(moduleKey);
-    localStorage.setItem('staffpulse_suite_module', moduleKey);
-    if (moduleKey === 'payroll') {
-      if (!subscription?.active && !currentUser) {
-        navigateTo('payroll_onboarding');
-      } else {
-        navigateTo('app');
-      }
-    } else {
-      navigateTo('coming_soon');
-    }
+  // --- Subscription & Billing Paywall Engine ---
+  const updateSubscriptionStatus = (newStatus) => {
+    const updated = {
+      ...company,
+      subscriptionStatus: newStatus,
+    };
+    storageService.saveCompany(updated);
+    setCompany(updated);
+    showToast(`Company billing status updated to: ${newStatus.toUpperCase()}`, 'info');
   };
 
-  const quickDemoBypass = () => {
-    const demoSub = {
-      active: true,
-      tier: 'pro',
-      planName: 'Pro Growth (Demo Pass)',
-      bypass: true,
-      activatedAt: new Date().toISOString()
-    };
-    setSubscription(demoSub);
-    localStorage.setItem('staffpulse_subscription', JSON.stringify(demoSub));
+  const isSubscriptionActive = () => {
+    return company?.subscriptionStatus !== 'expired';
+  };
+
+  // --- Client / Demo Access Gateway (Lead Capture) ---
+  const requestDemoAccess = ({ name, businessName, phone, email, staffCount }) => {
+    const demoPassword = `Demo#${Math.floor(1000 + Math.random() * 9000)}`;
+    const demoEmail = email || `demo.${(businessName || 'client').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}@velohr.com`;
     
-    const bypassUser = {
-      email: 'demo.admin@staffpulse.io',
-      role: 'admin',
-      name: 'Operations Lead (Demo)',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    const lead = storageService.saveLead({
+      name,
+      businessName,
+      phone,
+      email: demoEmail,
+      staffCount,
+      generatedPassword: demoPassword,
+    });
+
+    return {
+      lead,
+      credentials: {
+        email: demoEmail,
+        password: demoPassword,
+        name,
+        businessName,
+      }
     };
-    setCurrentUser(bypassUser);
+  };
+
+  const enterSandboxDemo = (credentials) => {
+    const sandboxUser = {
+      email: credentials?.email || 'demo@velohr.com',
+      role: 'demo',
+      name: credentials?.name || 'Demo Explorer',
+      businessName: credentials?.businessName || 'Demo Sandbox Corp',
+      isSandbox: true,
+    };
+    setCurrentUser(sandboxUser);
     setUserRole('admin');
-    localStorage.setItem('staffpulse_auth_user', JSON.stringify(bypassUser));
+    localStorage.setItem('velohr_auth_user', JSON.stringify(sandboxUser));
+
+    setImpersonatedTenant({
+      id: 'demo-sandbox',
+      name: `${credentials?.businessName || 'Demo Business'} (Sandbox)`,
+      plan: 'Growth Pro',
+      status: 'Trial',
+    });
 
     triggerCelebration();
-    showToast('⚡ Instant Demo Access Granted! Welcome to StaffPulse.', 'success');
+    showToast(`🌟 Welcome to Velo HR Sandboxed Demo, ${credentials?.name || 'Explorer'}!`, 'success');
     navigateTo('app');
   };
 
@@ -501,48 +516,47 @@ export const AppProvider = ({ children }) => {
       companyName,
     };
     setSubscription(newSub);
-    localStorage.setItem('staffpulse_subscription', JSON.stringify(newSub));
+    localStorage.setItem('velohr_subscription', JSON.stringify(newSub));
 
     if (companyName) {
       updateCompany({
         ...company,
         name: companyName,
-        brandName: companyName,
+        brandName: 'Velo HR',
         email: email || company.email,
         phone: phone || company.phone,
+        subscriptionStatus: 'active',
       });
     }
 
     const newUser = {
-      email: email || 'admin@staffpulse.io',
+      email: email || 'admin@velohr.com',
       role: 'admin',
       name: adminName || 'Admin Manager',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
     };
     setCurrentUser(newUser);
     setUserRole('admin');
-    localStorage.setItem('staffpulse_auth_user', JSON.stringify(newUser));
+    localStorage.setItem('velohr_auth_user', JSON.stringify(newUser));
 
     triggerCelebration();
-    showToast(`🎉 Welcome aboard! Activated ${planNames[tier]} for ${companyName || 'your company'}.`, 'success');
+    showToast(`🎉 Welcome to Velo HR! Activated ${planNames[tier]} for ${companyName || 'your company'}.`, 'success');
     navigateTo('app');
   };
 
-  const joinWaitlist = (email, moduleName) => {
-    try {
-      const waitlist = JSON.parse(localStorage.getItem('staffpulse_waitlist') || '[]');
-      waitlist.push({ email, module: moduleName, date: new Date().toISOString() });
-      localStorage.setItem('staffpulse_waitlist', JSON.stringify(waitlist));
-      showToast(`⭐ Priority waitlist confirmed for StaffPulse ${moduleName.toUpperCase()}!`, 'success');
-    } catch {
-      showToast(`⭐ Priority waitlist confirmed!`, 'success');
-    }
+  // --- Reports & Export Modal Handler ---
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+  const [reportsModalDefault, setReportsModalDefault] = useState('payroll');
+
+  const openReportsExport = (defaultType = 'payroll') => {
+    setReportsModalDefault(defaultType);
+    setIsReportsModalOpen(true);
   };
 
   // --- Navigation & Auth Actions ---
   const navigateTo = (mode) => {
     setAppMode(mode);
-    localStorage.setItem('staffpulse_app_mode', mode);
+    localStorage.setItem('velohr_app_mode', mode);
     if (typeof window !== 'undefined') {
       window.location.hash = '#' + mode;
     }
@@ -554,23 +568,54 @@ export const AppProvider = ({ children }) => {
     const cleanId = rawId.toLowerCase();
     const cleanPass = (password || '').trim();
 
-    // 1. Super Admin Check
-    if (cleanId === 'superadmin' || cleanId === 'superadmin@staffpulse.io') {
-      if (cleanPass && cleanPass !== 'super123') {
-        throw new Error('Invalid Super Admin password.');
+    // 1. MASTER SUPER ADMIN LOGIN GATEWAY
+    if (
+      cleanId === 'admin@velohr.com' ||
+      cleanId === 'superadmin@velohr.com' ||
+      cleanId === 'superadmin' ||
+      cleanId === 'master@velohr.com'
+    ) {
+      if (cleanPass && cleanPass !== 'MasterAdmin#2026' && cleanPass !== 'admin123' && cleanPass !== 'super123') {
+        throw new Error('Invalid Master Super Admin credentials. Access denied.');
       }
-      const superUser = { email: 'superadmin@staffpulse.io', role: 'superadmin', name: 'Platform Owner' };
-      setCurrentUser(superUser);
+      const masterUser = {
+        email: 'admin@velohr.com',
+        role: 'superadmin',
+        name: 'Master Super Admin',
+        isMaster: true,
+      };
+      setCurrentUser(masterUser);
       setUserRole('superadmin');
-      localStorage.setItem('staffpulse_auth_user', JSON.stringify(superUser));
+      localStorage.setItem('velohr_auth_user', JSON.stringify(masterUser));
       navigateTo('superadmin');
-      return superUser;
+      return masterUser;
     }
 
-    // 2. Company Administrator Check
+    // 2. SANDBOX DEMO LOGIN GATEWAY
+    if (cleanId.startsWith('demo.') || cleanId === 'demo' || cleanId === 'demo@velohr.com') {
+      const demoUser = {
+        email: cleanId,
+        role: 'demo',
+        name: name || 'Demo Explorer',
+        isSandbox: true,
+      };
+      setCurrentUser(demoUser);
+      setUserRole('admin');
+      localStorage.setItem('velohr_auth_user', JSON.stringify(demoUser));
+      setImpersonatedTenant({
+        id: 'demo-sandbox',
+        name: 'Velo HR Sandboxed Demo',
+        plan: 'Growth Pro',
+        status: 'Trial',
+      });
+      navigateTo('app');
+      return demoUser;
+    }
+
+    // 3. COMPANY ADMINISTRATOR LOGIN
     if (cleanId === 'admin' || cleanId === 'admin@apexcorp.com' || cleanId === (company?.email || '').toLowerCase()) {
       if (cleanPass && cleanPass !== 'admin123' && cleanPass !== (company?.adminPassword || '')) {
-        throw new Error('Invalid Administrator password.');
+        throw new Error('Invalid Administrator credentials.');
       }
       const adminUser = {
         email: cleanId.includes('@') ? cleanId : (company?.email || 'admin@apexcorp.com'),
@@ -579,12 +624,12 @@ export const AppProvider = ({ children }) => {
       };
       setCurrentUser(adminUser);
       setUserRole('admin');
-      localStorage.setItem('staffpulse_auth_user', JSON.stringify(adminUser));
+      localStorage.setItem('velohr_auth_user', JSON.stringify(adminUser));
       navigateTo('app');
       return adminUser;
     }
 
-    // 3. Employee ID, Email, or Phone Match
+    // 4. EMPLOYEE ID / PIN LOGIN
     const matchedEmp = employees.find(e => 
       e.id?.toLowerCase() === cleanId || 
       e.email?.toLowerCase() === cleanId ||
@@ -611,7 +656,7 @@ export const AppProvider = ({ children }) => {
       setCurrentUser(staffUser);
       setUserRole(empRole);
       setActiveEmployeeId(matchedEmp.id);
-      localStorage.setItem('staffpulse_auth_user', JSON.stringify(staffUser));
+      localStorage.setItem('velohr_auth_user', JSON.stringify(staffUser));
       navigateTo('app');
       return staffUser;
     }
@@ -620,7 +665,7 @@ export const AppProvider = ({ children }) => {
     if (employeeId) {
       const emp = employees.find(e => e.id === employeeId);
       const user = {
-        email: emp?.email || `${employeeId.toLowerCase()}@staffpulse.io`,
+        email: emp?.email || `${employeeId.toLowerCase()}@velohr.com`,
         role: role,
         name: emp?.name || name || 'Staff Member',
         employeeId: employeeId,
@@ -629,7 +674,7 @@ export const AppProvider = ({ children }) => {
       setCurrentUser(user);
       setUserRole(role);
       setActiveEmployeeId(employeeId);
-      localStorage.setItem('staffpulse_auth_user', JSON.stringify(user));
+      localStorage.setItem('velohr_auth_user', JSON.stringify(user));
       navigateTo('app');
       return user;
     }
@@ -656,7 +701,7 @@ export const AppProvider = ({ children }) => {
     };
     setCurrentUser(adminUser);
     setUserRole('admin');
-    localStorage.setItem('staffpulse_auth_user', JSON.stringify(adminUser));
+    localStorage.setItem('velohr_auth_user', JSON.stringify(adminUser));
     navigateTo('app');
     showToast(`🏢 Welcome ${companyName}! Office workspace initialized.`, 'success');
   };
@@ -665,7 +710,7 @@ export const AppProvider = ({ children }) => {
     await firebaseAuthService.logout();
     setCurrentUser(null);
     setImpersonatedTenant(null);
-    localStorage.removeItem('staffpulse_auth_user');
+    localStorage.removeItem('velohr_auth_user');
     showToast('Signed out successfully', 'info');
     navigateTo('landing');
   };
@@ -709,14 +754,14 @@ export const AppProvider = ({ children }) => {
       return t;
     });
     setSupportTickets(updated);
-    localStorage.setItem('staffpulse_support_tickets', JSON.stringify(updated));
+    localStorage.setItem('velohr_support_tickets', JSON.stringify(updated));
     showToast(`Ticket ${ticketId} resolved & fix documented!`, 'success');
   };
 
   const addTenant = (tenantData) => {
     const updated = [tenantData, ...tenants];
     setTenants(updated);
-    localStorage.setItem('staffpulse_tenants', JSON.stringify(updated));
+    localStorage.setItem('velohr_tenants', JSON.stringify(updated));
     showToast(`Onboarded new company: ${tenantData.name}`, 'success');
   };
 
@@ -728,7 +773,7 @@ export const AppProvider = ({ children }) => {
       return t;
     });
     setTenants(updated);
-    localStorage.setItem('staffpulse_tenants', JSON.stringify(updated));
+    localStorage.setItem('velohr_tenants', JSON.stringify(updated));
     showToast(`Updated account status to ${newStatus}`, 'info');
   };
 
@@ -800,15 +845,20 @@ export const AppProvider = ({ children }) => {
         setSelectedMonth,
         selectedYear,
         setSelectedYear,
-        // Suite & Multi-Product Navigation
-        suiteModule,
-        setSuiteModule,
-        switchSuiteModule,
+        // Subscription & Paywall Engine
         subscription,
         setSubscription,
-        quickDemoBypass,
+        updateSubscriptionStatus,
+        isSubscriptionActive,
+        requestDemoAccess,
+        enterSandboxDemo,
         onboardCompany,
-        joinWaitlist,
+        // Reports & Export Engine
+        isReportsModalOpen,
+        setIsReportsModalOpen,
+        reportsModalDefault,
+        setReportsModalDefault,
+        openReportsExport,
         // App View & Auth State
         appMode,
         setAppMode,

@@ -46,6 +46,7 @@ export const AttendanceView = () => {
     setSelectedEmployeeForReport,
     setSelectedPunchDetail,
     setIsEmployeeModalOpen,
+    openReportsExport,
   } = useApp();
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0]?.id || '');
@@ -205,16 +206,26 @@ export const AttendanceView = () => {
             </button>
           </div>
 
+          {/* Bulk Export & Compliance Statements */}
+          <button
+            onClick={() => openReportsExport('attendance')}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
+            title="Download full monthly attendance register and biometric log sheets"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Reports & Export</span>
+          </button>
+
           {/* Monthly Timesheet Report Trigger */}
           <button
             onClick={() => {
               setSelectedEmployeeForReport(selectedEmployee);
               setIsMonthlyReportOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition active:scale-95"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-cyan-200" />
-            <span>Itemized Monthly Report</span>
+            <span>Itemized Timesheet</span>
           </button>
         </div>
       </div>

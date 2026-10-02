@@ -281,7 +281,7 @@ export const PayslipModal = () => {
                 This is a computer-generated payslip and requires no physical signature under IT Act 2000.
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Powered by ApexCorp StaffPulse Automated Payroll Engine.
+                Powered by Velo HR — Payroll & Attendance Suite.
               </p>
             </div>
 

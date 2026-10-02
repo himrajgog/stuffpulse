@@ -1,17 +1,15 @@
-// Main Application Layout & Router
+// Main Application Layout & Router - Velo HR
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
-import { SuiteSelector } from './components/SuiteSelector';
 
 // Public & Auth Views
 import { LandingPage } from './views/LandingPage';
 import { AuthPage } from './views/AuthPage';
 import { SuperAdminPanel } from './views/SuperAdminPanel';
 import { PayrollOnboarding } from './views/PayrollOnboarding';
-import { ComingSoonModule } from './views/ComingSoonModule';
 
 // Portal Views
 import { Dashboard } from './views/Dashboard';
@@ -34,12 +32,22 @@ import { ReceiptViewerModal } from './components/ReceiptViewerModal';
 import { FaceTerminalModal } from './components/FaceTerminalModal';
 import { MonthlyReportModal } from './components/MonthlyReportModal';
 import { PunchInspectorModal } from './components/PunchInspectorModal';
+import { ReportsExportModal } from './components/ReportsExportModal';
 import { ToastContainer } from './components/ToastContainer';
 import { Crown, ArrowLeft } from 'lucide-react';
 
 const MainLayout = () => {
-  const { activeTab, impersonatedTenant, exitImpersonation } = useApp();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const {
+    activeTab,
+    impersonatedTenant,
+    exitImpersonation,
+    isReportsModalOpen,
+    setIsReportsModalOpen,
+    reportsModalDefault,
+  } = useApp();
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile drawer
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Desktop toggle
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -65,7 +73,7 @@ const MainLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Super Admin Workspace Impersonation Banner */}
       {impersonatedTenant && (
         <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between shadow-lg sticky top-0 z-50 border-b border-purple-700/60">
@@ -77,12 +85,12 @@ const MainLayout = () => {
               <span className="text-amber-200 underline font-black">{impersonatedTenant.name}</span>
             </div>
             <span className="hidden md:inline text-purple-300">
-              — You have root access to inspect & fix their attendance, salary, and loan records
+              — Root diagnostic view for tenant inspection
             </span>
           </div>
           <button
             onClick={exitImpersonation}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1 rounded-xl text-xs font-black transition shadow-xs flex items-center gap-1 shrink-0 ml-2"
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1 rounded-xl text-xs font-black transition shadow-xs flex items-center gap-1 shrink-0 ml-2 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Return to Super Admin HQ</span>
@@ -91,13 +99,24 @@ const MainLayout = () => {
       )}
 
       <div className="flex-1 flex">
-        {/* Sidebar for Desktop & Drawer on Mobile */}
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        {/* Collapsible Sidebar for Desktop & Drawer on Mobile */}
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          isCollapsed={isSidebarCollapsed}
+        />
 
-        {/* Main Content Area */}
-        <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
-          <SuiteSelector />
-          <Navbar onToggleSidebar={() => setIsSidebarOpen(prev => !prev)} />
+        {/* Main Content Area - dynamically adjusts padding when collapsed */}
+        <div
+          className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-72'
+          }`}
+        >
+          <Navbar
+            onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+            onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+            isCollapsed={isSidebarCollapsed}
+          />
 
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
             {renderActiveView()}
@@ -118,13 +137,18 @@ const MainLayout = () => {
       <FaceTerminalModal />
       <MonthlyReportModal />
       <PunchInspectorModal />
+      <ReportsExportModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        defaultReport={reportsModalDefault}
+      />
       <ToastContainer />
     </div>
   );
 };
 
 const AppRoot = () => {
-  const { appMode, suiteModule } = useApp();
+  const { appMode, currentUser, navigateTo } = useApp();
 
   if (appMode === 'landing') {
     return (
@@ -145,6 +169,30 @@ const AppRoot = () => {
   }
 
   if (appMode === 'superadmin') {
+    // Access control: only superadmin can view SuperAdminPanel
+    if (currentUser?.role !== 'superadmin') {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+              <Crown className="w-6 h-6" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Super Admin Access Protected</h2>
+            <p className="text-xs text-slate-400">
+              Only the Master Super Admin can access the platform owner command center. Please sign in with master credentials.
+            </p>
+            <button
+              onClick={() => navigateTo('login')}
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition"
+            >
+              Sign In as Master Admin
+            </button>
+          </div>
+          <ToastContainer />
+        </div>
+      );
+    }
+
     return (
       <>
         <SuperAdminPanel />
@@ -155,19 +203,8 @@ const AppRoot = () => {
 
   if (appMode === 'payroll_onboarding') {
     return (
-      <div className="min-h-screen bg-[#FBFAF7] flex flex-col">
-        <SuiteSelector />
+      <div className="min-h-screen bg-[#FDFBF7] flex flex-col">
         <PayrollOnboarding />
-        <ToastContainer />
-      </div>
-    );
-  }
-
-  if (appMode === 'coming_soon') {
-    return (
-      <div className="min-h-screen bg-[#FBFAF7] flex flex-col">
-        <SuiteSelector />
-        <ComingSoonModule moduleKey={suiteModule} />
         <ToastContainer />
       </div>
     );

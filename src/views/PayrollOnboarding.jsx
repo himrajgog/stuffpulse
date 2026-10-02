@@ -20,7 +20,6 @@ import { useApp } from '../context/AppContext';
 export const PayrollOnboarding = () => {
   const {
     navigateTo,
-    quickDemoBypass,
     onboardCompany,
     showToast,
     company
@@ -30,9 +29,9 @@ export const PayrollOnboarding = () => {
   const [selectedPlan, setSelectedPlan] = useState('pro'); // 'starter' | 'pro' | 'enterprise'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    companyName: company?.name || 'Apex Logistics & Retail Solutions',
-    adminName: 'Sidhee Singh',
-    email: 'admin@apexcorp.com',
+    companyName: company?.name || 'Velo Logistics & Services',
+    adminName: 'Operations Director',
+    email: 'admin@company.com',
     phone: '9876543210',
     password: 'password123',
     staffCount: '30',
@@ -56,33 +55,31 @@ export const PayrollOnboarding = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFAF7] text-slate-900 font-sans pb-24 selection:bg-amber-400 selection:text-black">
+    <div className="min-h-screen bg-[#FBFAF7] text-slate-900 font-sans pb-24 selection:bg-blue-500 selection:text-white">
       
       {/* Header Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between">
         <button
           onClick={() => navigateTo('landing')}
-          className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-black transition"
+          className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-black transition cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Home</span>
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-slate-950 text-white font-extrabold flex items-center justify-center text-xs">
-            SP
+          <div className="w-8 h-8 rounded-xl bg-brand-600 text-white font-black flex items-center justify-center text-xs shadow-sm">
+            VHR
           </div>
-          <span className="font-extrabold text-base tracking-tight">StaffPulse</span>
+          <span className="font-extrabold text-base tracking-tight text-slate-900">Velo HR</span>
         </div>
 
-        {/* Top Fast Bypass Button */}
         <button
-          onClick={quickDemoBypass}
-          className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm px-4 py-2 rounded-full shadow-sm hover:shadow transition active:scale-95 border border-amber-400/40"
-          title="Instant access with preloaded sample data"
+          onClick={() => navigateTo('login')}
+          className="flex items-center gap-1.5 text-slate-700 hover:text-brand-600 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition cursor-pointer hover:bg-stone-200/50"
         >
-          <Zap className="w-4 h-4 fill-slate-950" />
-          <span>Quick Demo Bypass</span>
+          <span>Existing Client? Sign In</span>
+          <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
 

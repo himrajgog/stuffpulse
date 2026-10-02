@@ -147,7 +147,7 @@ export const SuperAdminPanel = () => {
               Multi-Tenant Operations Command Center
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-              You are the owner of StaffPulse. Monitor all subscribing companies, diagnose and resolve their operational issues, manage subscription billing, and enter any company workspace in 1-click.
+              You are the Master Super Admin of Velo HR. Monitor all client organizations, diagnose and resolve tenant inquiries, manage billing tiers, and inspect company workspaces in 1-click.
             </p>
           </div>
 

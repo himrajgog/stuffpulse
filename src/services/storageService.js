@@ -1,4 +1,4 @@
-// Unified Multi-Tenant Storage Service: Local-First with Firestore Sync capability
+// Unified Multi-Tenant Storage Service for Velo HR: Local-First with Firestore Sync capability
 import {
   INITIAL_COMPANY,
   INITIAL_EMPLOYEES,
@@ -10,13 +10,14 @@ import {
 import { isFirebaseActive, firestoreService } from './firebase';
 
 const BASE_KEYS = {
-  COMPANY: 'staffpulse_company',
-  EMPLOYEES: 'staffpulse_employees',
-  ATTENDANCE: 'staffpulse_attendance',
-  EXPENSES: 'staffpulse_expenses',
-  LOANS: 'staffpulse_loans',
-  TASKS: 'staffpulse_tasks',
-  TENANTS: 'staffpulse_tenants',
+  COMPANY: 'velohr_company',
+  EMPLOYEES: 'velohr_employees',
+  ATTENDANCE: 'velohr_attendance',
+  EXPENSES: 'velohr_expenses',
+  LOANS: 'velohr_loans',
+  TASKS: 'velohr_tasks',
+  TENANTS: 'velohr_tenants',
+  LEADS: 'velohr_leads',
 };
 
 // Generate scoped key per tenant company
@@ -347,6 +348,26 @@ export const storageService = {
       firestoreService.setDocumentWithId('tasks', taskId, completedItem, companyId);
     }
     return updated;
+  },
+
+  // --- Lead & Demo Access Gateway ---
+  saveLead(leadData) {
+    const leads = loadLocal(BASE_KEYS.LEADS, []);
+    const enriched = {
+      ...leadData,
+      id: `LEAD-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      status: 'Demo Access Issued',
+    };
+    const updated = [enriched, ...leads];
+    saveLocal(BASE_KEYS.LEADS, updated);
+    if (isFirebaseActive()) {
+      firestoreService.addDocument('leads', enriched);
+    }
+    return enriched;
+  },
+  getLeads() {
+    return loadLocal(BASE_KEYS.LEADS, []);
   },
 
   // --- Reset Tenant to Clean State ---
