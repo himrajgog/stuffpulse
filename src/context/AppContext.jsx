@@ -84,51 +84,64 @@ export const AppProvider = ({ children }) => {
     }
   });
 
-  // Core Entities State
-  const [company, setCompany] = useState(() => storageService.getCompany());
-  const [employees, setEmployees] = useState(() => storageService.getEmployees());
-  const [attendance, setAttendance] = useState(() => storageService.getAttendance());
-  const [expenses, setExpenses] = useState(() => storageService.getExpenses());
-  const [loans, setLoans] = useState(() => storageService.getLoans());
-  const [tasks, setTasks] = useState(() => storageService.getTasks());
+  // Multi-Tenant Company & Entities State (Starts completely empty for real live entries)
+  const currentCompanyId = impersonatedTenant?.id || company?.id || 'comp-001';
 
-  // Real-time synchronization across mobile & desktop when Firebase is configured
+  const [company, setCompany] = useState(() => storageService.getCompany(currentCompanyId));
+  const [employees, setEmployees] = useState(() => storageService.getEmployees(currentCompanyId));
+  const [attendance, setAttendance] = useState(() => storageService.getAttendance(currentCompanyId));
+  const [expenses, setExpenses] = useState(() => storageService.getExpenses(currentCompanyId));
+  const [loans, setLoans] = useState(() => storageService.getLoans(currentCompanyId));
+  const [tasks, setTasks] = useState(() => storageService.getTasks(currentCompanyId));
+
+  // Platform-wide metrics for Super Admin overview
+  const [platformStats, setPlatformStats] = useState({
+    totalCompanies: tenants?.length || 0,
+    activeSubscriptions: tenants?.filter(t => t.status === 'Active')?.length || 0,
+    totalRevenue: tenants?.reduce((sum, t) => sum + (t.mrr || t.monthlyBilling || 0), 0) || 0,
+    totalStaffAcrossPlatform: 0,
+    tierCounts: { starter: 1, pro: 3, enterprise: 1 }
+  });
+
+  // Real-time synchronization across mobile & desktop when Firebase is configured (Filtered by Tenant)
   useEffect(() => {
+    // Reload local scoped data for tenant
+    setEmployees(storageService.getEmployees(currentCompanyId));
+    setAttendance(storageService.getAttendance(currentCompanyId));
+    setExpenses(storageService.getExpenses(currentCompanyId));
+    setLoans(storageService.getLoans(currentCompanyId));
+    setTasks(storageService.getTasks(currentCompanyId));
+
     if (!isFirebaseActive()) return;
 
     const unsubEmployees = firestoreService.subscribeToCollection('employees', (remoteEmployees) => {
-      if (remoteEmployees && remoteEmployees.length > 0) {
-        setEmployees(remoteEmployees);
-        localStorage.setItem('workpulse_employees', JSON.stringify(remoteEmployees));
-      }
-    });
+      setEmployees(remoteEmployees || []);
+      localStorage.setItem(`staffpulse_employees_${currentCompanyId}`, JSON.stringify(remoteEmployees || []));
+    }, currentCompanyId);
 
     const unsubAttendance = firestoreService.subscribeToCollection('attendance', (remoteAttendance) => {
-      if (remoteAttendance && remoteAttendance.length > 0) {
-        setAttendance(remoteAttendance);
-        localStorage.setItem('workpulse_attendance', JSON.stringify(remoteAttendance));
-      }
-    });
+      setAttendance(remoteAttendance || []);
+      localStorage.setItem(`staffpulse_attendance_${currentCompanyId}`, JSON.stringify(remoteAttendance || []));
+    }, currentCompanyId);
 
     const unsubExpenses = firestoreService.subscribeToCollection('expenses', (remoteExpenses) => {
-      if (remoteExpenses && remoteExpenses.length > 0) {
-        setExpenses(remoteExpenses);
-        localStorage.setItem('workpulse_expenses', JSON.stringify(remoteExpenses));
-      }
-    });
+      setExpenses(remoteExpenses || []);
+      localStorage.setItem(`staffpulse_expenses_${currentCompanyId}`, JSON.stringify(remoteExpenses || []));
+    }, currentCompanyId);
 
     const unsubTasks = firestoreService.subscribeToCollection('tasks', (remoteTasks) => {
-      if (remoteTasks && remoteTasks.length > 0) {
-        setTasks(remoteTasks);
-        localStorage.setItem('workpulse_tasks', JSON.stringify(remoteTasks));
-      }
-    });
+      setTasks(remoteTasks || []);
+      localStorage.setItem(`staffpulse_tasks_${currentCompanyId}`, JSON.stringify(remoteTasks || []));
+    }, currentCompanyId);
 
     const unsubLoans = firestoreService.subscribeToCollection('loans', (remoteLoans) => {
-      if (remoteLoans && remoteLoans.length > 0) {
-        setLoans(remoteLoans);
-        localStorage.setItem('workpulse_loans', JSON.stringify(remoteLoans));
-      }
+      setLoans(remoteLoans || []);
+      localStorage.setItem(`staffpulse_loans_${currentCompanyId}`, JSON.stringify(remoteLoans || []));
+    }, currentCompanyId);
+
+    // Refresh platform-wide stats for Super Admin
+    firestoreService.getPlatformStats().then(stats => {
+      if (stats) setPlatformStats(stats);
     });
 
     return () => {
@@ -138,7 +151,7 @@ export const AppProvider = ({ children }) => {
       unsubTasks();
       unsubLoans();
     };
-  }, []);
+  }, [currentCompanyId]);
 
   // Suite Module State: 'payroll' | 'biz' | 'desk' | 'books'
   const [suiteModule, setSuiteModule] = useState(() => {
@@ -225,6 +238,7 @@ export const AppProvider = ({ children }) => {
       notes,
       dateStr: selectedDate,
       timeStr: nowTime,
+      companyId: currentCompanyId,
     });
 
     setAttendance(updatedAttendance);
@@ -243,6 +257,7 @@ export const AppProvider = ({ children }) => {
         address,
         dateStr: selectedDate,
         timeStr: nowTime,
+        companyId: currentCompanyId,
       });
 
       setAttendance(updatedAttendance);
@@ -266,7 +281,7 @@ export const AppProvider = ({ children }) => {
       return a;
     });
     setAttendance(updated);
-    storageService.saveAttendanceRecord(updated.find(a => a.id === recordId));
+    storageService.saveAttendanceRecord(updated.find(a => a.id === recordId), currentCompanyId);
     showToast(`Attendance marked as ${newStatus}`, 'success');
   };
 
@@ -275,10 +290,11 @@ export const AppProvider = ({ children }) => {
     const isNew = !employeeData.id;
     const finalData = {
       ...employeeData,
+      companyId: currentCompanyId,
       id: employeeData.id || `EMP-${String(employees.length + 1).padStart(3, '0')}`,
       status: employeeData.status || 'Active',
     };
-    const updated = storageService.saveEmployee(finalData);
+    const updated = storageService.saveEmployee(finalData, currentCompanyId);
     setEmployees(updated);
     showToast(isNew ? `Added employee ${finalData.name}` : `Updated employee ${finalData.name}`, 'success');
     setIsEmployeeModalOpen(false);
@@ -287,7 +303,7 @@ export const AppProvider = ({ children }) => {
 
   const deleteEmployee = (employeeId) => {
     const emp = employees.find(e => e.id === employeeId);
-    const updated = storageService.deleteEmployee(employeeId);
+    const updated = storageService.deleteEmployee(employeeId, currentCompanyId);
     setEmployees(updated);
     showToast(`Removed employee ${emp?.name || employeeId}`, 'info');
   };
@@ -297,13 +313,14 @@ export const AppProvider = ({ children }) => {
     const emp = employees.find(e => e.id === expenseData.employeeId);
     const newExpense = {
       ...expenseData,
+      companyId: currentCompanyId,
       id: `EXP-${Date.now().toString().slice(-4)}`,
       employeeName: emp ? emp.name : 'Employee',
       status: 'Pending',
       createdAt: new Date().toISOString(),
       syncedToPayroll: false,
     };
-    const updated = storageService.saveExpense(newExpense);
+    const updated = storageService.saveExpense(newExpense, currentCompanyId);
     setExpenses(updated);
     showToast(`Expense claim ₹${newExpense.amount} submitted for approval`, 'success');
     setIsAddExpenseModalOpen(false);
@@ -311,20 +328,20 @@ export const AppProvider = ({ children }) => {
 
   const approveExpense = (expenseId, adminNotes = '') => {
     const exp = expenses.find(e => e.id === expenseId);
-    const updated = storageService.updateExpenseStatus(expenseId, 'Approved', adminNotes);
+    const updated = storageService.updateExpenseStatus(expenseId, 'Approved', adminNotes, currentCompanyId);
     setExpenses(updated);
     showToast(`Approved expense ₹${exp?.amount} for ${exp?.employeeName}. Synced to Payroll!`, 'success');
   };
 
   const rejectExpense = (expenseId, adminNotes = '') => {
     const exp = expenses.find(e => e.id === expenseId);
-    const updated = storageService.updateExpenseStatus(expenseId, 'Rejected', adminNotes);
+    const updated = storageService.updateExpenseStatus(expenseId, 'Rejected', adminNotes, currentCompanyId);
     setExpenses(updated);
     showToast(`Rejected expense for ${exp?.employeeName}`, 'warning');
   };
 
   const deleteExpense = (expenseId) => {
-    const updated = storageService.deleteExpense(expenseId);
+    const updated = storageService.deleteExpense(expenseId, currentCompanyId);
     setExpenses(updated);
     showToast('Expense claim deleted', 'info');
   };
@@ -337,6 +354,7 @@ export const AppProvider = ({ children }) => {
 
     const newLoan = {
       ...loanData,
+      companyId: currentCompanyId,
       id: `LOAN-${Date.now().toString().slice(-4)}`,
       employeeName: emp ? emp.name : 'Employee',
       amount,
@@ -348,27 +366,29 @@ export const AppProvider = ({ children }) => {
       repaymentHistory: [],
     };
 
-    const updated = storageService.saveLoan(newLoan);
+    const updated = storageService.saveLoan(newLoan, currentCompanyId);
     setLoans(updated);
     showToast(`Issued ${newLoan.loanType} of ₹${amount} to ${emp?.name}`, 'success');
     setIsIssueLoanModalOpen(false);
   };
 
   const recordLoanRepayment = (loanId, amount, note) => {
-    const updated = storageService.recordLoanPayment(loanId, amount, note);
+    const updated = storageService.recordLoanPayment(loanId, amount, note, currentCompanyId);
     setLoans(updated);
     showToast(`Recorded repayment of ₹${amount}`, 'success');
   };
 
   // --- Company Settings ---
   const updateCompany = (newCompanyData) => {
-    const updated = storageService.saveCompany(newCompanyData);
+    const enriched = { ...newCompanyData, id: currentCompanyId };
+    const updated = storageService.saveCompany(enriched);
     setCompany(updated);
     showToast('Company profile & payroll settings updated', 'success');
   };
 
   // --- Payslip Generator Trigger ---
   const openPayslip = (employee, month = selectedMonth, year = selectedYear) => {
+    if (!employee) return;
     const empAttendance = attendance.filter(a => a.employeeId === employee.id);
     const empExpenses = expenses.filter(e => 
       e.employeeId === employee.id && 
@@ -400,32 +420,33 @@ export const AppProvider = ({ children }) => {
     const isNew = !taskData.id;
     const finalData = {
       ...taskData,
+      companyId: currentCompanyId,
       id: taskData.id || `TSK-${Date.now().toString().slice(-4)}`,
       status: taskData.status || 'Pending',
       createdAt: taskData.createdAt || new Date().toISOString(),
     };
-    const updated = storageService.saveTask(finalData);
+    const updated = storageService.saveTask(finalData, currentCompanyId);
     setTasks(updated);
     showToast(isNew ? `Task created: "${finalData.title}"` : `Task updated`, 'success');
   };
 
   const completeTaskWithProof = (taskId, { proofPhoto, completionNotes }) => {
-    const updated = storageService.completeTaskWithProof(taskId, { proofPhoto, completionNotes });
+    const updated = storageService.completeTaskWithProof(taskId, { proofPhoto, completionNotes }, currentCompanyId);
     setTasks(updated);
     triggerCelebration();
     showToast('Task marked Completed with photo proof verification!', 'success');
   };
 
-  // --- Reset to Demo Data ---
+  // --- Reset Tenant Data ---
   const resetDemoData = () => {
-    const data = storageService.resetToDemo();
+    const data = storageService.resetTenantToClean(currentCompanyId);
     setCompany(data.company);
     setEmployees(data.employees);
     setAttendance(data.attendance);
     setExpenses(data.expenses);
     setLoans(data.loans);
     setTasks(data.tasks);
-    showToast('Reset to original sample data successfully!', 'info');
+    showToast('Reset tenant workspace to clean slate.', 'info');
   };
 
   // --- Suite Switcher & Onboarding Actions ---
@@ -796,6 +817,8 @@ export const AppProvider = ({ children }) => {
         registerCompany,
         logoutUser,
         // Super Admin & Multi-Tenancy
+        currentCompanyId,
+        platformStats,
         tenants,
         setTenants,
         supportTickets,

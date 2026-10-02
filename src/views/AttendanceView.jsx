@@ -15,7 +15,8 @@ import {
   Info,
   Edit2,
   FileSpreadsheet,
-  Camera
+  Camera,
+  Plus
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getDaysArrayForMonth, getMonthName } from '../utils/dateUtils';
@@ -44,18 +45,20 @@ export const AttendanceView = () => {
     setIsMonthlyReportOpen,
     setSelectedEmployeeForReport,
     setSelectedPunchDetail,
+    setIsEmployeeModalOpen,
   } = useApp();
 
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0]?.id || 'EMP-001');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0]?.id || '');
   const [selectedDayDetails, setSelectedDayDetails] = useState(null);
 
-  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || employees[0];
+  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || employees[0] || null;
   const daysArray = getDaysArrayForMonth(selectedYear, selectedMonth);
 
   // Filter attendance for selected employee in selected month
   const empMonthAttendance = attendance.filter(a => {
     return (
-      a.employeeId === selectedEmployeeId &&
+      selectedEmployee &&
+      a.employeeId === selectedEmployee.id &&
       a.date.startsWith(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`)
     );
   });
@@ -127,6 +130,27 @@ export const AttendanceView = () => {
       }
     });
   };
+
+  if (employees.length === 0) {
+    return (
+      <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-card text-center space-y-4 max-w-xl mx-auto my-12 animate-in fade-in">
+        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto">
+          <CalendarCheck2 className="w-8 h-8" />
+        </div>
+        <h3 className="text-xl font-extrabold text-slate-900">No Staff Members Registered Yet</h3>
+        <p className="text-xs text-slate-500 max-w-md mx-auto">
+          To view attendance timesheets, monthly calendar records, and biometric verification, add your first employee to the workspace.
+        </p>
+        <button
+          onClick={() => setIsEmployeeModalOpen(true)}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md shadow-brand-500/25 transition active:scale-95"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add First Employee</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 lg:pb-10">

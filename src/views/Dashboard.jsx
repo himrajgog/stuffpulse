@@ -43,6 +43,7 @@ export const Dashboard = () => {
     setIsMonthlyReportOpen,
     setSelectedEmployeeForReport,
     setSelectedPunchDetail,
+    setIsEmployeeModalOpen,
     setActiveTab,
     openPayslip,
   } = useApp();
@@ -475,8 +476,25 @@ export const Dashboard = () => {
         {/* Directory List / Table */}
         <div className="divide-y divide-slate-100 overflow-x-auto">
           {filteredEmployees.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 text-xs">
-              No staff members matching your filter query.
+            <div className="p-12 text-center text-slate-500 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                <Users className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">
+                {employees.length === 0 ? 'No Employees Registered Yet' : 'No staff members matching your filter query.'}
+              </p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                {employees.length === 0 ? 'Add your first staff member to start tracking real-time attendance, biometric punches, and automated payroll.' : 'Try changing your search terms or department filters.'}
+              </p>
+              {employees.length === 0 && (
+                <button
+                  onClick={() => setIsEmployeeModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md shadow-brand-500/25 transition active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Register First Employee</span>
+                </button>
+              )}
             </div>
           ) : (
             filteredEmployees.map((emp) => {

@@ -298,116 +298,134 @@ export const PayrollCalculator = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredRecords.map((record) => {
-                const empObj = employees.find(e => e.id === record.employeeId);
-                const allowancesSum = record.earnings.specialAllowance + record.earnings.conveyance + record.earnings.bonus;
+              {filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan="11" className="py-12 text-center text-slate-500">
+                    <div className="max-w-md mx-auto space-y-2">
+                      <Calculator className="w-8 h-8 text-slate-400 mx-auto" />
+                      <p className="font-bold text-sm text-slate-800">
+                        {employees.length === 0 ? 'No Employees in Workspace Yet' : 'No staff match the current payroll filter'}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {employees.length === 0
+                          ? 'Add staff members in the Directory to calculate automated monthly payroll, PF/ESI deductions, and printable payslips.'
+                          : 'Try selecting a different wage model or search query.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredRecords.map((record) => {
+                  const empObj = employees.find(e => e.id === record.employeeId);
+                  const allowancesSum = record.earnings.specialAllowance + record.earnings.conveyance + record.earnings.bonus;
 
-                return (
-                  <tr key={record.employeeId} className="hover:bg-slate-50/70 transition">
-                    {/* Staff Member */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={empObj?.avatar}
-                          alt={record.employeeName}
-                          className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-200"
-                        />
-                        <div>
-                          <div className="font-bold text-slate-900">{record.employeeName}</div>
-                          <div className="text-[11px] text-slate-400">{record.designation}</div>
+                  return (
+                    <tr key={record.employeeId} className="hover:bg-slate-50/70 transition">
+                      {/* Staff Member */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={empObj?.avatar}
+                            alt={record.employeeName}
+                            className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-200"
+                          />
+                          <div>
+                            <div className="font-bold text-slate-900">{record.employeeName}</div>
+                            <div className="text-[11px] text-slate-400">{record.designation}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Wage Model */}
-                    <td className="py-3.5 px-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                        record.wageType === 'Monthly'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                          : 'bg-amber-50 text-amber-700 border border-amber-100'
-                      }`}>
-                        {record.wageType}
-                      </span>
-                    </td>
+                      {/* Wage Model */}
+                      <td className="py-3.5 px-3">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                          record.wageType === 'Monthly'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                        }`}>
+                          {record.wageType}
+                        </span>
+                      </td>
 
-                    {/* Payable Days */}
-                    <td className="py-3.5 px-3 text-center">
-                      <div className="font-bold text-slate-800 font-mono">
-                        {record.attendanceSummary.payableDays} / {record.totalDaysInMonth}
-                      </div>
-                      {record.attendanceSummary.absentDays > 0 ? (
-                        <div className="text-[10px] text-rose-500 font-semibold">
-                          -{record.attendanceSummary.absentDays} Absences
+                      {/* Payable Days */}
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="font-bold text-slate-800 font-mono">
+                          {record.attendanceSummary.payableDays} / {record.totalDaysInMonth}
                         </div>
-                      ) : (
-                        <div className="text-[10px] text-emerald-600 font-semibold">100% Attendance</div>
-                      )}
-                    </td>
+                        {record.attendanceSummary.absentDays > 0 ? (
+                          <div className="text-[10px] text-rose-500 font-semibold">
+                            -{record.attendanceSummary.absentDays} Absences
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-emerald-600 font-semibold">100% Attendance</div>
+                        )}
+                      </td>
 
-                    {/* Basic & HRA */}
-                    <td className="py-3.5 px-3 text-right font-mono">
-                      <span className="font-semibold text-slate-800">
-                        {formatCurrency(record.earnings.basic + record.earnings.hra)}
-                      </span>
-                    </td>
-
-                    {/* Allowances */}
-                    <td className="py-3.5 px-3 text-right font-mono text-slate-600">
-                      +{formatCurrency(allowancesSum)}
-                    </td>
-
-                    {/* Approved Expense Reimbursements */}
-                    <td className="py-3.5 px-3 text-right font-mono">
-                      {record.earnings.expenseReimbursements > 0 ? (
-                        <span className="text-brand-700 font-bold bg-brand-50 px-1.5 py-0.5 rounded">
-                          +{formatCurrency(record.earnings.expenseReimbursements)}
+                      {/* Basic & HRA */}
+                      <td className="py-3.5 px-3 text-right font-mono">
+                        <span className="font-semibold text-slate-800">
+                          {formatCurrency(record.earnings.basic + record.earnings.hra)}
                         </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Gross Total */}
-                    <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900">
-                      {formatCurrency(record.earnings.grossTotal)}
-                    </td>
+                      {/* Allowances */}
+                      <td className="py-3.5 px-3 text-right font-mono text-slate-600">
+                        +{formatCurrency(allowancesSum)}
+                      </td>
 
-                    {/* PF & ESI */}
-                    <td className="py-3.5 px-3 text-right font-mono text-rose-600">
-                      -{formatCurrency(record.deductions.pf + record.deductions.esi + record.deductions.professionalTax)}
-                    </td>
+                      {/* Approved Expense Reimbursements */}
+                      <td className="py-3.5 px-3 text-right font-mono">
+                        {record.earnings.expenseReimbursements > 0 ? (
+                          <span className="text-brand-700 font-bold bg-brand-50 px-1.5 py-0.5 rounded">
+                            +{formatCurrency(record.earnings.expenseReimbursements)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
 
-                    {/* Active Loan EMI */}
-                    <td className="py-3.5 px-3 text-right font-mono">
-                      {record.deductions.loanEMI > 0 ? (
-                        <span className="text-rose-700 font-bold bg-rose-50 px-1.5 py-0.5 rounded">
-                          -{formatCurrency(record.deductions.loanEMI)}
+                      {/* Gross Total */}
+                      <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-900">
+                        {formatCurrency(record.earnings.grossTotal)}
+                      </td>
+
+                      {/* PF & ESI */}
+                      <td className="py-3.5 px-3 text-right font-mono text-rose-600">
+                        -{formatCurrency(record.deductions.pf + record.deductions.esi + record.deductions.professionalTax)}
+                      </td>
+
+                      {/* Active Loan EMI */}
+                      <td className="py-3.5 px-3 text-right font-mono">
+                        {record.deductions.loanEMI > 0 ? (
+                          <span className="text-rose-700 font-bold bg-rose-50 px-1.5 py-0.5 rounded">
+                            -{formatCurrency(record.deductions.loanEMI)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Net Payable Pay */}
+                      <td className="py-3.5 px-4 text-right font-mono">
+                        <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-xl">
+                          {formatCurrency(record.netSalary)}
                         </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Net Payable Pay */}
-                    <td className="py-3.5 px-4 text-right font-mono">
-                      <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-xl">
-                        {formatCurrency(record.netSalary)}
-                      </span>
-                    </td>
-
-                    {/* Generate Payslip Action */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => openPayslip(empObj, selectedMonth, selectedYear)}
-                        className="inline-flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs"
-                      >
-                        <Printer className="w-3 h-3 text-emerald-400" />
-                        <span>Payslip</span>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                      {/* Generate Payslip Action */}
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => openPayslip(empObj, selectedMonth, selectedYear)}
+                          className="inline-flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs"
+                        >
+                          <Printer className="w-3 h-3 text-emerald-400" />
+                          <span>Payslip</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

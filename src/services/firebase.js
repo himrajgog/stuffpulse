@@ -88,11 +88,12 @@ export { firestoreDb as db, firebaseAuth as auth, firebaseStorage as storage };
  * Firestore helper methods with automatic error fallback
  */
 export const firestoreService = {
-  async getCollection(collectionName) {
+  async getCollection(collectionName, companyId = null) {
     if (!isConfigured || !firestoreDb) return null;
     try {
       const colRef = collection(firestoreDb, collectionName);
-      const snapshot = await getDocs(colRef);
+      const q = companyId ? query(colRef, where('companyId', '==', companyId)) : colRef;
+      const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (err) {
       console.error(`Error reading ${collectionName} from Firestore:`, err);
@@ -100,11 +101,12 @@ export const firestoreService = {
     }
   },
 
-  subscribeToCollection(collectionName, callback) {
+  subscribeToCollection(collectionName, callback, companyId = null) {
     if (!isConfigured || !firestoreDb) return () => {};
     try {
       const colRef = collection(firestoreDb, collectionName);
-      return onSnapshot(colRef, (snapshot) => {
+      const q = companyId ? query(colRef, where('companyId', '==', companyId)) : colRef;
+      return onSnapshot(q, (snapshot) => {
         const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(docs);
       }, (err) => {
@@ -116,14 +118,16 @@ export const firestoreService = {
     }
   },
 
-  async addDocument(collectionName, data) {
+  async addDocument(collectionName, data, companyId = null) {
     if (!isConfigured || !firestoreDb) return null;
     try {
       const colRef = collection(firestoreDb, collectionName);
-      const docRef = await addDoc(colRef, {
+      const payload = {
         ...data,
+        companyId: companyId || data?.companyId || 'comp-001',
         createdAt: new Date().toISOString(),
-      });
+      };
+      const docRef = await addDoc(colRef, payload);
       return docRef.id;
     } catch (err) {
       console.error(`Error adding to ${collectionName}:`, err);
@@ -131,15 +135,50 @@ export const firestoreService = {
     }
   },
 
-  async setDocumentWithId(collectionName, docId, data) {
+  async setDocumentWithId(collectionName, docId, data, companyId = null) {
     if (!isConfigured || !firestoreDb) return false;
     try {
       const docRef = doc(firestoreDb, collectionName, docId);
-      await setDoc(docRef, data, { merge: true });
+      const payload = {
+        ...data,
+        companyId: companyId || data?.companyId || 'comp-001',
+      };
+      await setDoc(docRef, payload, { merge: true });
       return true;
     } catch (err) {
       console.error(`Error saving document ${docId}:`, err);
       return false;
+    }
+  },
+
+  async getPlatformStats() {
+    if (!isConfigured || !firestoreDb) {
+      return null;
+    }
+    try {
+      const companiesSnapshot = await getDocs(collection(firestoreDb, 'companies'));
+      const companies = companiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const employeesSnapshot = await getDocs(collection(firestoreDb, 'employees'));
+      
+      const tierCounts = { starter: 0, pro: 0, enterprise: 0 };
+      let totalRevenue = 0;
+      companies.forEach(c => {
+        const plan = (c.plan || 'starter').toLowerCase();
+        if (tierCounts[plan] !== undefined) tierCounts[plan]++;
+        totalRevenue += Number(c.monthlyBilling || 0);
+      });
+
+      return {
+        totalCompanies: companies.length,
+        activeSubscriptions: companies.filter(c => c.status === 'Active' || c.planStatus === 'Active').length,
+        totalRevenue,
+        totalStaffAcrossPlatform: employeesSnapshot.docs.length,
+        tierCounts,
+        companies
+      };
+    } catch (e) {
+      console.warn('Failed to calculate platform stats:', e);
+      return null;
     }
   },
 
