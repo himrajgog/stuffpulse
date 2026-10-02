@@ -85,9 +85,10 @@ export const AppProvider = ({ children }) => {
   });
 
   // Multi-Tenant Company & Entities State (Starts completely empty for real live entries)
+  const initialCompanyId = impersonatedTenant?.id || 'comp-001';
+  const [company, setCompany] = useState(() => storageService.getCompany(initialCompanyId));
   const currentCompanyId = impersonatedTenant?.id || company?.id || 'comp-001';
 
-  const [company, setCompany] = useState(() => storageService.getCompany(currentCompanyId));
   const [employees, setEmployees] = useState(() => storageService.getEmployees(currentCompanyId));
   const [attendance, setAttendance] = useState(() => storageService.getAttendance(currentCompanyId));
   const [expenses, setExpenses] = useState(() => storageService.getExpenses(currentCompanyId));
