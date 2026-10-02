@@ -96,3 +96,20 @@
   animation: floatSlow 5s ease-in-out infinite;
 }
 
+/* Elegant Corporate Background Watermark */
+.bg-velo-watermark {
+  position: relative;
+}
+.bg-velo-watermark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/iconlogo.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(460px, 70vw);
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+

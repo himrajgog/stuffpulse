@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Receipt,
   Landmark,
-  FileSpreadsheet
+  FileSpreadsheet,
+  MessageCircle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateAllPayrolls } from '../utils/payrollEngine';
@@ -158,6 +159,28 @@ export const PayrollCalculator = () => {
     link.click();
     document.body.removeChild(link);
     showToast('Exported payroll spreadsheet summary to CSV!', 'success');
+  };
+
+  // WhatsApp Payslip Dispatch
+  const handleWhatsAppPayslip = (emp, record) => {
+    const rawPhone = emp?.phone || '';
+    const phone = rawPhone.replace(/\D/g, '');
+    const monthName = getMonthName(selectedMonth - 1);
+    const summaryText = 
+      `*VELO HR — Monthly Payslip Advice*\n` +
+      `Dear ${record.employeeName},\n` +
+      `Your automated payroll statement for *${monthName} ${selectedYear}* is generated:\n\n` +
+      `• Gross Earnings: ${formatCurrency(record.earnings.grossTotal)}\n` +
+      `• PF & ESI Deductions: -${formatCurrency(record.deductions.pf + record.deductions.esi + record.deductions.professionalTax)}\n` +
+      `• Loan EMI Repayment: -${formatCurrency(record.deductions.loanEMI)}\n` +
+      `• *Net Disbursed Pay: ${formatCurrency(record.netSalary)}*\n` +
+      `• Days Payable: ${record.attendanceSummary.payableDays} / ${record.totalDaysInMonth}\n\n` +
+      `View and download your official PDF payslip on the Velo HR portal.`;
+
+    const encodedText = encodeURIComponent(summaryText);
+    const waUrl = phone ? `https://wa.me/${phone}?text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
+    window.open(waUrl, '_blank');
+    showToast(`Launched WhatsApp payslip dispatch for ${record.employeeName}!`, 'success');
   };
 
   // Subscription Paywall Engine Gate
@@ -450,15 +473,27 @@ export const PayrollCalculator = () => {
                         </span>
                       </td>
 
-                      {/* Generate Payslip Action */}
+                      {/* Generate Payslip & WhatsApp Actions */}
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          onClick={() => openPayslip(empObj, selectedMonth, selectedYear)}
-                          className="inline-flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs"
-                        >
-                          <Printer className="w-3 h-3 text-emerald-400" />
-                          <span>Payslip</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => openPayslip(empObj, selectedMonth, selectedYear)}
+                            title="View & Print PDF Payslip"
+                            className="inline-flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
+                          >
+                            <Printer className="w-3 h-3 text-emerald-400" />
+                            <span>Payslip</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleWhatsAppPayslip(empObj, record)}
+                            title={`Send payslip summary via WhatsApp to ${empObj?.phone || 'staff'}`}
+                            className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
+                          >
+                            <MessageCircle className="w-3 h-3 text-white" />
+                            <span className="hidden sm:inline">WhatsApp</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

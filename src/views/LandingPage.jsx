@@ -35,10 +35,14 @@ import {
   FileSpreadsheet,
   Lock,
   Smile,
-  Globe
+  Globe,
+  Sliders,
+  TrendingUp
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/dateUtils';
+import { CinematicVideoModal } from '../components/CinematicVideoModal';
+import { EcosystemComingSoonModal } from '../components/EcosystemComingSoonModal';
 
 export const LandingPage = () => {
   const {
@@ -47,7 +51,8 @@ export const LandingPage = () => {
     employees,
     showToast,
     requestDemoAccess,
-    enterSandboxDemo
+    enterSandboxDemo,
+    registerTrialLead
   } = useApp();
 
   // State
@@ -64,6 +69,41 @@ export const LandingPage = () => {
     staffCount: '25-50',
   });
   const [interactivePunchStatus, setInteractivePunchStatus] = useState('Punched In');
+
+  // Video, Ecosystem & Self-Registration States
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [comingSoonSuite, setComingSoonSuite] = useState(null); // 'biz' | 'desk' | 'books'
+  const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
+  const [trialFormData, setTrialFormData] = useState({
+    fullName: '',
+    companyName: '',
+    email: '',
+    phone: '',
+    password: '',
+    staffCount: '35',
+  });
+  const [trialLoading, setTrialLoading] = useState(false);
+
+  // Interactive ROI Calculator State
+  const [roiStaffCount, setRoiStaffCount] = useState(35);
+
+  const handleTrialRegister = (e) => {
+    e.preventDefault();
+    if (!trialFormData.companyName.trim() || !trialFormData.email.trim() || !trialFormData.password.trim()) {
+      showToast('Please fill all required registration fields', 'error');
+      return;
+    }
+    setTrialLoading(true);
+    try {
+      registerTrialLead(trialFormData);
+      setIsTrialModalOpen(false);
+      showToast(`🎉 Organization workspace registered for ${trialFormData.companyName}! Your 14-day trial request is under review.`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Registration failed', 'error');
+    } finally {
+      setTrialLoading(false);
+    }
+  };
 
   const handleDemoSubmit = (e) => {
     e.preventDefault();
@@ -101,22 +141,22 @@ export const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-slate-900 font-sans selection:bg-indigo-500 selection:text-white antialiased">
+    <div className="min-h-screen bg-[#FDFBF7] text-slate-900 font-sans selection:bg-indigo-500 selection:text-white antialiased relative bg-velo-watermark">
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <aside aria-label="Announcement" className="bg-gradient-to-r from-blue-50 via-indigo-50/70 to-blue-50 border-b border-blue-100/80 px-4 py-2 text-center text-xs font-medium text-slate-700 relative z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 flex-wrap">
-          <span className="bg-blue-600 text-white font-extrabold px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider shadow-xs">
+          <span className="bg-[#1b3b6f] text-white font-extrabold px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider shadow-xs">
             Multi-Tenant 2.0 Live
           </span>
           <span className="text-slate-600">
             Enterprise Firestore data isolation, geofenced GPS biometric punches, & automated PF/ESI payslips.
           </span>
           <button
-            onClick={() => navigateTo('payroll_onboarding')}
-            className="text-blue-700 hover:text-indigo-800 font-bold underline underline-offset-2 inline-flex items-center gap-1 ml-1 cursor-pointer"
+            onClick={() => setIsTrialModalOpen(true)}
+            className="text-[#1b3b6f] hover:text-amber-600 font-bold underline underline-offset-2 inline-flex items-center gap-1 ml-1 cursor-pointer"
           >
-            <span>Start Free Trial</span>
+            <span>Start 14-Day Free Trial</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -124,57 +164,64 @@ export const LandingPage = () => {
 
       {/* 2. STICKY NAVIGATION BAR */}
       <header className="sticky top-0 z-40 bg-[#FDFBF7]/90 backdrop-blur-xl border-b border-stone-200/70 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           
-          {/* Brand Logo */}
-          <div className="flex items-center gap-8">
+          {/* Brand Logo & Ecosystem Navigation */}
+          <div className="flex items-center gap-6 xl:gap-8">
             <button
               onClick={() => navigateTo('landing')}
-              className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
+              className="flex items-center gap-3 text-left group focus:outline-none cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition">
-                <span className="font-black text-sm tracking-wider">VHR</span>
+              <div className="w-11 h-11 rounded-2xl bg-white border border-stone-200 p-1 flex items-center justify-center shadow-xs group-hover:scale-105 transition shrink-0">
+                <img src="/iconlogo.png" alt="Velo HR" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-                    Velo <span className="text-blue-600">HR</span>
+                    Velo<span className="text-[#f39c12]">HR</span>
                   </span>
-                  <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200 hidden sm:inline">
+                  <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-100 text-[#1b3b6f] border border-blue-200 hidden sm:inline">
                     ENTERPRISE
                   </span>
                 </div>
-                <span className="text-[10px] font-medium text-slate-500 -mt-0.5 hidden sm:block">
-                  Payroll & Attendance Suite
+                <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider hidden sm:block">
+                  HUMAN RESOURCES | TALENT SOLUTIONS
                 </span>
               </div>
             </button>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex items-center gap-7 text-xs font-bold text-slate-600">
-              <a href="#features" className="hover:text-blue-600 transition">Features</a>
-              <a href="#how-it-works" className="hover:text-blue-600 transition">How It Works</a>
-              <a href="#pricing" className="hover:text-blue-600 transition">Pricing</a>
-              <a href="#compliance" className="hover:text-blue-600 transition">Statutory Compliance</a>
-              <a href="#faqs" className="hover:text-blue-600 transition">FAQs</a>
-            </nav>
+            {/* Ecosystem Suite Tabs */}
+            <div className="hidden lg:flex items-center bg-stone-100/90 p-1 rounded-2xl border border-stone-200 text-xs font-bold">
+              <span className="bg-[#1b3b6f] text-white px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Payroll & Attendance (Core)</span>
+              </span>
+              <button
+                onClick={() => setComingSoonSuite('biz')}
+                className="px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/60 transition cursor-pointer flex items-center gap-1"
+              >
+                <span>Biz (Inventory)</span>
+                <span className="text-[9px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-black">SOON</span>
+              </button>
+              <button
+                onClick={() => setComingSoonSuite('desk')}
+                className="px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/60 transition cursor-pointer flex items-center gap-1"
+              >
+                <span>Desk (CRM)</span>
+                <span className="text-[9px] bg-blue-100 text-blue-800 px-1 py-0.2 rounded font-black">SOON</span>
+              </button>
+              <button
+                onClick={() => setComingSoonSuite('books')}
+                className="px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-white/60 transition cursor-pointer flex items-center gap-1"
+              >
+                <span>Books (Accounting)</span>
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-black">SOON</span>
+              </button>
+            </div>
           </div>
 
-          {/* Right Action Buttons */}
+          {/* Right Action Buttons: Streamlined to "Sign In" and "Request Demo" */}
           <div className="flex items-center gap-2.5 sm:gap-3">
-            {/* Request Demo Trigger */}
-            <button
-              onClick={() => {
-                setDemoStep('capture');
-                setIsDemoModalOpen(true);
-              }}
-              className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 px-3.5 py-2 rounded-xl transition cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>Request Demo</span>
-            </button>
-
-            {/* Login Button */}
             <button
               onClick={() => navigateTo('login')}
               className="text-xs font-bold text-slate-700 hover:text-slate-900 px-3.5 py-2 rounded-xl hover:bg-stone-200/50 transition cursor-pointer"
@@ -182,13 +229,15 @@ export const LandingPage = () => {
               Sign In
             </button>
 
-            {/* Get Started CTA */}
             <button
-              onClick={() => navigateTo('payroll_onboarding')}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-extrabold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer"
+              onClick={() => {
+                setDemoStep('capture');
+                setIsDemoModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-md shadow-amber-500/20 transition active:scale-95 cursor-pointer"
             >
-              <span>Get Started Free</span>
-              <ArrowRight className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 text-slate-950" />
+              <span>Request Demo</span>
             </button>
           </div>
 
@@ -196,25 +245,34 @@ export const LandingPage = () => {
       </header>
 
       {/* 3. HERO SECTION */}
-      <section className="relative pt-12 pb-20 sm:pt-20 sm:pb-28 overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F8F5EE] to-[#FDFBF7]">
+      <section className="relative pt-12 pb-20 sm:pt-16 sm:pb-28 overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F8F5EE] to-[#FDFBF7]">
         {/* Subtle ambient light glows */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute top-10 right-10 w-96 h-96 bg-purple-300/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-10 right-10 w-96 h-96 bg-amber-300/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-10 left-10 w-96 h-96 bg-emerald-300/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           
+          {/* Whole Logo Artwork Centered */}
+          <div className="text-center mb-6">
+            <img
+              src="/wholelogo.png"
+              alt="Velo HR — Human Resources | Talent Solutions"
+              className="h-16 sm:h-20 mx-auto object-contain filter drop-shadow-sm hover:scale-105 transition duration-300"
+            />
+          </div>
+
           {/* Hero Header Content */}
           <div className="text-center max-w-3xl mx-auto space-y-6">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-stone-200 text-xs font-bold text-slate-700 shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>Next-Generation Workforce & Payroll OS</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Next-Generation Workforce & Payroll SaaS OS</span>
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 leading-[1.1]">
               Precision GPS Attendance. <br className="hidden sm:inline" />
-              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[#1b3b6f] via-blue-600 to-[#f39c12] bg-clip-text text-transparent">
                 1-Click Payroll.
               </span> <br />
               Zero Headaches.
@@ -226,12 +284,23 @@ export const LandingPage = () => {
 
             {/* Primary Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
+              {/* Launch Web App / Watch Platform Tour CTA Button */}
               <button
-                onClick={() => navigateTo('payroll_onboarding')}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-black text-sm px-7 py-4 rounded-2xl shadow-xl shadow-indigo-600/25 transition active:scale-95 cursor-pointer"
+                onClick={() => setIsVideoModalOpen(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0f2444] hover:bg-[#1b3b6f] text-white font-black text-sm px-6 py-4 rounded-2xl shadow-xl shadow-[#0f2444]/25 transition active:scale-95 cursor-pointer border border-white/10"
+              >
+                <div className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center">
+                  <Play className="w-3 h-3 fill-slate-950 ml-0.5" />
+                </div>
+                <span>Launch Web App Tour</span>
+              </button>
+
+              <button
+                onClick={() => setIsTrialModalOpen(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm px-7 py-4 rounded-2xl shadow-xl shadow-amber-500/25 transition active:scale-95 cursor-pointer"
               >
                 <span>Start 14-Day Free Trial</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 text-slate-950" />
               </button>
 
               <button
@@ -241,7 +310,7 @@ export const LandingPage = () => {
                 }}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-slate-900 font-bold text-sm px-6 py-4 rounded-2xl border border-stone-300 transition active:scale-95 cursor-pointer shadow-sm hover:shadow"
               >
-                <Sparkles className="w-4 h-4 text-blue-600" />
+                <Sparkles className="w-4 h-4 text-[#1b3b6f]" />
                 <span>Request Demo Access</span>
               </button>
 
@@ -636,6 +705,120 @@ export const LandingPage = () => {
 
           </div>
 
+        </div>
+      </section>
+
+      {/* 4.5 INTERACTIVE ROI CALCULATOR SECTION */}
+      <section className="py-20 bg-gradient-to-b from-stone-50 via-white to-[#FDFBF7] border-y border-stone-200/80 relative overflow-hidden">
+        <div className="absolute top-1/2 left-0 w-80 h-80 bg-blue-100/40 rounded-full blur-3xl pointer-events-none -translate-y-1/2" />
+        <div className="absolute top-1/2 right-0 w-80 h-80 bg-amber-100/40 rounded-full blur-3xl pointer-events-none -translate-y-1/2" />
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center max-w-2xl mx-auto space-y-3 mb-10">
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-3 py-1 rounded-full">
+              Real-Time ROI Calculator
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              See How Much Time & Money Velo HR Saves You
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600">
+              Drag the slider to match your active workforce size and calculate your estimated monthly operational return on investment.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-stone-200/90 shadow-xl space-y-8">
+            {/* Slider Control */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#1b3b6f]" />
+                  <span>Your Total Employee Workforce Count:</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-[#1b3b6f] font-mono">
+                    {roiStaffCount}
+                  </span>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Staff Members
+                  </span>
+                </div>
+              </div>
+
+              <input
+                type="range"
+                min="5"
+                max="500"
+                step="5"
+                value={roiStaffCount}
+                onChange={(e) => setRoiStaffCount(Number(e.target.value))}
+                className="w-full h-3 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-[#1b3b6f]"
+              />
+
+              <div className="flex justify-between text-[11px] font-mono text-slate-400 font-semibold">
+                <span>5 Employees (Micro)</span>
+                <span>100 Employees (Mid-Market)</span>
+                <span>500+ Employees (Enterprise)</span>
+              </div>
+            </div>
+
+            {/* Savings Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-stone-100">
+              <div className="bg-[#FAF8F5] p-5 rounded-2xl border border-stone-200 text-center space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Admin Hours Reclaimed / Mo
+                </span>
+                <div className="text-3xl sm:text-4xl font-black text-[#1b3b6f] font-mono">
+                  {Math.round(roiStaffCount * 3.2)} hrs
+                </div>
+                <p className="text-[11px] text-emerald-600 font-bold">
+                  Zero manual spreadsheet entry
+                </p>
+              </div>
+
+              <div className="bg-amber-50/70 p-5 rounded-2xl border border-amber-200 text-center space-y-1">
+                <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                  Est. Monthly Cost Savings
+                </span>
+                <div className="text-3xl sm:text-4xl font-black text-amber-600 font-mono">
+                  {formatCurrency(Math.round(roiStaffCount * 3.2 * 350))}
+                </div>
+                <p className="text-[11px] text-amber-800 font-bold">
+                  ₹{Math.round(roiStaffCount * 3.2 * 350 * 12).toLocaleString('en-IN')}/year operational value
+                </p>
+              </div>
+
+              <div className="bg-[#FAF8F5] p-5 rounded-2xl border border-stone-200 text-center space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Payroll Processing Speed
+                </span>
+                <div className="text-3xl sm:text-4xl font-black text-emerald-600 font-mono">
+                  ~4 Mins
+                </div>
+                <p className="text-[11px] text-slate-600 font-bold">
+                  Reduced from 4 days to 4 mins
+                </p>
+              </div>
+            </div>
+
+            {/* CTA bar */}
+            <div className="bg-gradient-to-r from-[#1b3b6f] via-[#0f2444] to-[#1b3b6f] rounded-2xl p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-sm sm:text-base text-white">
+                  Ready to capture these savings for your team?
+                </h4>
+                <p className="text-xs text-slate-300">
+                  Provision your multi-tenant organization workspace in 60 seconds.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsTrialModalOpen(true)}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm shadow-md transition active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                Claim Your Savings — Start Trial
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1302,6 +1485,166 @@ export const LandingPage = () => {
           </div>
         </div>
       )}
+
+      {/* 8. CLIENT SELF-REGISTRATION MODAL (Start 14-Day Free Trial) */}
+      {isTrialModalOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0f2444]/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-stone-200/90 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative overflow-hidden">
+            {/* Ambient decoration */}
+            <div className="absolute top-0 right-0 w-48 h-48 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#1b3b6f]/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Close Button */}
+            <button
+              onClick={() => setIsTrialModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-stone-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#1b3b6f] flex items-center justify-center p-1.5 shadow-md shrink-0">
+                <img src="/iconlogo.png" alt="Velo HR" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 inline-block">
+                  INSTANT MULTI-TENANT ONBOARDING
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  Start 14-Day Free Trial
+                </h3>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Register your organization to provision an isolated Firestore workspace with automated GPS attendance, statutory PF/ESI compliance, and salary slips.
+            </p>
+
+            <form onSubmit={handleTrialRegister} className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Company / Organization Legal Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Apex Global Logistics Pvt Ltd"
+                  value={trialFormData.companyName}
+                  onChange={(e) => setTrialFormData(prev => ({ ...prev, companyName: e.target.value }))}
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Full Name (Authorized Signatory)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Himraj Gogoi"
+                  value={trialFormData.fullName}
+                  onChange={(e) => setTrialFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                  className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Official Work Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="founder@company.com"
+                    value={trialFormData.email}
+                    onChange={(e) => setTrialFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Direct Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    value={trialFormData.phone}
+                    onChange={(e) => setTrialFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Set Admin Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={trialFormData.password}
+                    onChange={(e) => setTrialFormData(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Estimated Staff Size
+                  </label>
+                  <select
+                    value={trialFormData.staffCount}
+                    onChange={(e) => setTrialFormData(prev => ({ ...prev, staffCount: e.target.value }))}
+                    className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] cursor-pointer"
+                  >
+                    <option value="5-15">5 - 15 Staff</option>
+                    <option value="16-50">16 - 50 Staff</option>
+                    <option value="51-200">51 - 200 Staff</option>
+                    <option value="200+">200+ Enterprise</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={trialLoading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 mt-4 disabled:opacity-60"
+              >
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>{trialLoading ? 'Provisioning Workspace...' : 'Provision 14-Day Free Trial'}</span>
+              </button>
+
+              <p className="text-[11px] text-slate-400 text-center pt-1">
+                Zero setup fees • 14 days free • No credit card required
+              </p>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cinematic Video Showcase Modal (anim.mp4) */}
+      <CinematicVideoModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        onGoToDemo={() => {
+          setIsVideoModalOpen(false);
+          setDemoStep('capture');
+          setIsDemoModalOpen(true);
+        }}
+      />
+
+      {/* Ecosystem Coming Soon Modal (Biz, Desk, Books) */}
+      <EcosystemComingSoonModal
+        isOpen={Boolean(comingSoonSuite)}
+        onClose={() => setComingSoonSuite(null)}
+        suite={comingSoonSuite || 'biz'}
+      />
 
     </div>
   );

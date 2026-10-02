@@ -56,6 +56,8 @@ export const AppProvider = ({ children }) => {
     }
   });
 
+  const [leads, setLeads] = useState(() => storageService.getLeads());
+
   const [supportTickets, setSupportTickets] = useState(() => {
     try {
       const saved = localStorage.getItem('velohr_support_tickets');
@@ -629,6 +631,29 @@ export const AppProvider = ({ children }) => {
       return adminUser;
     }
 
+    // 3b. REGISTERED TENANT ADMIN LOGIN
+    const matchedTenant = tenants.find(t => 
+      (t.adminEmail || '').toLowerCase() === cleanId || 
+      (t.email || '').toLowerCase() === cleanId
+    );
+    if (matchedTenant) {
+      if (matchedTenant.status === 'pending_approval' || matchedTenant.status === 'new_lead') {
+        throw new Error('Your organization registration is currently pending Super Admin review. Please allow a few moments for trial activation.');
+      }
+      const adminUser = {
+        email: cleanId,
+        role: 'admin',
+        name: matchedTenant.adminName || matchedTenant.name,
+        companyId: matchedTenant.id,
+      };
+      setCompany(storageService.getCompany(matchedTenant.id));
+      setCurrentUser(adminUser);
+      setUserRole('admin');
+      localStorage.setItem('velohr_auth_user', JSON.stringify(adminUser));
+      navigateTo('app');
+      return adminUser;
+    }
+
     // 4. EMPLOYEE ID / PIN LOGIN
     const matchedEmp = employees.find(e => 
       e.id?.toLowerCase() === cleanId || 
@@ -777,6 +802,28 @@ export const AppProvider = ({ children }) => {
     showToast(`Updated account status to ${newStatus}`, 'info');
   };
 
+  const registerTrialLead = (leadData) => {
+    const res = storageService.registerTrialLead(leadData);
+    setLeads(storageService.getLeads());
+    try {
+      const savedTenants = localStorage.getItem('velohr_tenants');
+      if (savedTenants) setTenants(JSON.parse(savedTenants));
+      else setTenants([res.tenant, ...tenants]);
+    } catch {
+      setTenants([res.tenant, ...tenants]);
+    }
+    showToast(`🎉 Registration submitted for ${leadData.companyName}! Your 14-day trial request is under review.`, 'success');
+    return res;
+  };
+
+  const activateTrialTenant = (tenantId) => {
+    const activated = storageService.activateTrialTenant(tenantId);
+    setTenants(prev => prev.map(t => t.id === tenantId ? { ...t, status: 'Trial' } : t));
+    setLeads(storageService.getLeads());
+    showToast(`🎉 14-Day Trial activated for tenant!`, 'success');
+    return activated;
+  };
+
   // Derived: Current user employee object if in employee mode
   const currentActiveEmployee = useMemo(() => {
     return employees.find(e => e.id === activeEmployeeId) || employees[0];
@@ -872,6 +919,10 @@ export const AppProvider = ({ children }) => {
         platformStats,
         tenants,
         setTenants,
+        leads,
+        setLeads,
+        registerTrialLead,
+        activateTrialTenant,
         supportTickets,
         setSupportTickets,
         impersonatedTenant,

@@ -67,16 +67,14 @@ export const PayrollOnboarding = () => {
           <span>Back to Home</span>
         </button>
 
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-brand-600 text-white font-black flex items-center justify-center text-xs shadow-sm">
-            VHR
-          </div>
-          <span className="font-extrabold text-base tracking-tight text-slate-900">Velo HR</span>
+        <div className="flex items-center gap-2.5">
+          <img src="/iconlogo.png" alt="Velo HR" className="w-8 h-8 object-contain" />
+          <span className="font-extrabold text-base tracking-tight text-[#1b3b6f]">Velo HR</span>
         </div>
 
         <button
           onClick={() => navigateTo('login')}
-          className="flex items-center gap-1.5 text-slate-700 hover:text-brand-600 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition cursor-pointer hover:bg-stone-200/50"
+          className="flex items-center gap-1.5 text-slate-700 hover:text-amber-600 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition cursor-pointer hover:bg-stone-200/50"
         >
           <span>Existing Client? Sign In</span>
           <ArrowRight className="w-3.5 h-3.5" />
@@ -86,8 +84,8 @@ export const PayrollOnboarding = () => {
       {/* Hero Announcement */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center pt-8 pb-12 space-y-4">
         
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-bold">
-          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-[#1b3b6f] text-xs font-bold">
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
           <span>Payroll & Attendance Gateway</span>
         </div>
 
@@ -98,26 +96,6 @@ export const PayrollOnboarding = () => {
         <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto">
           Every plan includes selfie biometric attendance, GPS geofencing, dynamic statutory tax slabs, and field float management.
         </p>
-
-        {/* Prominent Demo Bypass Hero Card */}
-        <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-amber-50 border-2 border-amber-300/80 rounded-3xl p-4 sm:p-5 max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-          <div className="text-left space-y-0.5">
-            <div className="flex items-center gap-2 text-xs font-black text-amber-900 uppercase tracking-wider">
-              <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
-              <span>Developer & Reviewer Sandbox</span>
-            </div>
-            <div className="text-xs text-amber-800">
-              Skip payment checkout & jump directly into the live workspace with 30 staff members & Jaipur geo records.
-            </div>
-          </div>
-          <button
-            onClick={quickDemoBypass}
-            className="w-full sm:w-auto shrink-0 bg-slate-950 hover:bg-black text-white text-xs font-extrabold px-5 py-2.5 rounded-full shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
-          >
-            <span>Bypass & Enter Now</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
 
         {/* Monthly / Yearly Switcher */}
         <div className="pt-4 flex items-center justify-center gap-3">
@@ -375,20 +353,12 @@ export const PayrollOnboarding = () => {
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center gap-2">
+              <div className="pt-2">
                 <button
                   type="submit"
-                  className="flex-1 bg-slate-950 hover:bg-black text-white font-extrabold py-3 rounded-full transition shadow-md active:scale-95"
+                  className="w-full bg-[#1b3b6f] hover:bg-[#0f2444] text-white font-extrabold py-3.5 rounded-full transition shadow-md active:scale-95 cursor-pointer"
                 >
                   Activate & Enter Suite
-                </button>
-                <button
-                  type="button"
-                  onClick={quickDemoBypass}
-                  className="px-4 py-3 rounded-full font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition text-xs flex items-center gap-1"
-                >
-                  <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                  <span>Bypass</span>
                 </button>
               </div>
             </form>

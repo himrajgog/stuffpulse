@@ -20,6 +20,8 @@ import { ExpenseManager } from './views/ExpenseManager';
 import { LoanManager } from './views/LoanManager';
 import { TaskManager } from './views/TaskManager';
 import { SettingsView } from './views/SettingsView';
+import { QrKioskView } from './views/QrKioskView';
+import { SetupWizard } from './components/SetupWizard';
 
 // Modals
 import { PunchModal } from './components/PunchModal';
@@ -44,6 +46,7 @@ const MainLayout = () => {
     isReportsModalOpen,
     setIsReportsModalOpen,
     reportsModalDefault,
+    userRole,
   } = useApp();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile drawer
@@ -55,6 +58,8 @@ const MainLayout = () => {
         return <Dashboard />;
       case 'attendance':
         return <AttendanceView />;
+      case 'qr_kiosk':
+        return <QrKioskView />;
       case 'employees':
         return <EmployeeDirectory />;
       case 'payroll':
@@ -73,7 +78,7 @@ const MainLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative bg-velo-watermark">
       {/* Super Admin Workspace Impersonation Banner */}
       {impersonatedTenant && (
         <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-900 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between shadow-lg sticky top-0 z-50 border-b border-purple-700/60">
@@ -118,7 +123,8 @@ const MainLayout = () => {
             isCollapsed={isSidebarCollapsed}
           />
 
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+            {userRole === 'admin' && <SetupWizard />}
             {renderActiveView()}
           </main>
 

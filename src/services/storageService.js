@@ -357,17 +357,137 @@ export const storageService = {
       ...leadData,
       id: `LEAD-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      status: 'Demo Access Issued',
+      status: leadData.status || 'Demo Access Issued',
+      type: leadData.type || 'demo_request',
     };
     const updated = [enriched, ...leads];
     saveLocal(BASE_KEYS.LEADS, updated);
     if (isFirebaseActive()) {
-      firestoreService.addDocument('leads', enriched);
+      firestoreService.addDocument('inquiries', enriched);
     }
     return enriched;
   },
   getLeads() {
     return loadLocal(BASE_KEYS.LEADS, []);
+  },
+
+  // Client Self-Registration Pipeline
+  registerTrialLead({ fullName, companyName, email, phone, password, staffCount }) {
+    const tenantId = `TENANT-${Date.now().toString().slice(-4)}`;
+    const newLead = {
+      id: `INQ-${Date.now().toString().slice(-4)}`,
+      tenantId,
+      name: companyName,
+      companyName,
+      adminName: fullName,
+      adminEmail: email,
+      adminPhone: phone,
+      staffCount: Number(staffCount) || 15,
+      password,
+      status: 'pending_approval',
+      type: 'trial_signup',
+      requestedAt: new Date().toISOString(),
+      plan: 'Growth Pro (14-Day Free Trial)',
+      city: 'India',
+      industry: 'Enterprise Services',
+    };
+
+    // Save to Inquiries / Leads
+    const currentLeads = this.getLeads();
+    const updatedLeads = [newLead, ...currentLeads];
+    saveLocal(BASE_KEYS.LEADS, updatedLeads);
+
+    // Provision clean, empty company workspace for this tenant
+    const newCompany = {
+      ...INITIAL_COMPANY,
+      id: tenantId,
+      name: companyName,
+      adminName: fullName,
+      email,
+      phone,
+      adminPassword: password,
+      subscriptionStatus: 'pending_approval',
+      planTier: 'pro',
+      subscriptionExpiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    };
+    this.saveCompany(newCompany);
+
+    // Save to tenants list
+    const tenants = loadLocal(BASE_KEYS.TENANTS, []);
+    const newTenantRecord = {
+      id: tenantId,
+      name: companyName,
+      brandName: companyName.split(' ')[0] || 'VeloHR',
+      code: (companyName.slice(0, 3) || 'VHR').toUpperCase(),
+      adminName: fullName,
+      adminEmail: email,
+      adminPhone: phone,
+      plan: 'Growth Pro',
+      billingCycle: 'Monthly',
+      mrr: 1499,
+      status: 'pending_approval',
+      staffCount: Number(staffCount) || 15,
+      payrollProcessedThisMonth: 0,
+      joinedDate: new Date().toISOString().split('T')[0],
+      renewalDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      city: 'India',
+      industry: 'Services',
+    };
+    saveLocal(BASE_KEYS.TENANTS, [newTenantRecord, ...tenants]);
+
+    if (isFirebaseActive()) {
+      firestoreService.setDocumentWithId('tenants', tenantId, newTenantRecord);
+      firestoreService.setDocumentWithId('inquiries', newLead.id, newLead);
+    }
+
+    return { lead: newLead, tenant: newTenantRecord, company: newCompany };
+  },
+
+  // One-Click Trial Activation by Master Super Admin
+  activateTrialTenant(tenantId) {
+    const tenants = loadLocal(BASE_KEYS.TENANTS, []);
+    let activatedTenant = null;
+    const expiryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const updatedTenants = tenants.map(t => {
+      if (t.id === tenantId) {
+        activatedTenant = {
+          ...t,
+          status: 'Trial',
+          renewalDate: expiryDate,
+        };
+        return activatedTenant;
+      }
+      return t;
+    });
+    saveLocal(BASE_KEYS.TENANTS, updatedTenants);
+
+    // Update Company subscription status
+    const company = this.getCompany(tenantId);
+    if (company) {
+      const updatedCompany = {
+        ...company,
+        subscriptionStatus: 'trial',
+        subscriptionExpiresAt: expiryDate,
+      };
+      this.saveCompany(updatedCompany);
+    }
+
+    // Update Inquiries status
+    const leads = this.getLeads();
+    const updatedLeads = leads.map(l => {
+      if (l.tenantId === tenantId || l.id === tenantId) {
+        return { ...l, status: 'Trial Activated' };
+      }
+      return l;
+    });
+    saveLocal(BASE_KEYS.LEADS, updatedLeads);
+
+    if (isFirebaseActive() && activatedTenant) {
+      firestoreService.setDocumentWithId('tenants', tenantId, activatedTenant);
+    }
+
+    return activatedTenant;
   },
 
   // --- Reset Tenant to Clean State ---

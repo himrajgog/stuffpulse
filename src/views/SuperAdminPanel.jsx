@@ -25,7 +25,9 @@ import {
   FileText,
   Mail,
   Phone,
-  Power
+  Power,
+  Menu,
+  Inbox
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate } from '../utils/dateUtils';
@@ -34,15 +36,18 @@ export const SuperAdminPanel = () => {
   const {
     tenants,
     supportTickets,
+    leads = [],
+    activateTrialTenant,
     impersonateTenant,
     resolveTicket,
     addTenant,
     updateTenantStatus,
     navigateTo,
+    logoutUser,
     showToast,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState('tenants'); // 'tenants' | 'tickets' | 'system'
+  const [activeTab, setActiveTab] = useState('inquiries'); // 'inquiries' | 'tenants' | 'tickets' | 'system'
   const [tenantSearch, setTenantSearch] = useState('');
   const [planFilter, setPlanFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -128,44 +133,84 @@ export const SuperAdminPanel = () => {
     setIsAddTenantModalOpen(false);
   };
 
+  const pendingLeadsCount = leads.filter(l => l.status === 'pending_approval' || l.status === 'new_lead').length;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 sm:p-6 lg:p-8 space-y-6 relative bg-velo-watermark">
       
-      {/* Top Super Admin Header */}
-      <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 border border-purple-800/40 rounded-3xl p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden">
+      {/* Top Extreme Left Hamburger & Platform Owner Header */}
+      <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 border border-purple-800/40 rounded-3xl p-5 sm:p-8 text-white shadow-2xl relative overflow-hidden">
         {/* Glow decoration */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Top utility row with Extreme Far-Left Hamburger */}
+        <div className="flex items-center justify-between pb-5 mb-5 border-b border-purple-800/40 relative z-10">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => showToast('Super Admin full-width distraction-free view active', 'info')}
+              className="p-2 -ml-1 rounded-xl text-amber-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
+              aria-label="Toggle Full-Screen Workspace"
+              title="Full-Screen Master HQ Workspace"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <img src="/iconlogo.png" alt="Velo HR" className="w-8 h-8 object-contain" />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-white text-sm sm:text-base tracking-tight">Velo HR</span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Master Super Admin HQ
+                  </span>
+                </div>
+                <p className="text-[10px] text-purple-300 font-bold uppercase tracking-wider">
+                  HUMAN RESOURCES | TALENT SOLUTIONS
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigateTo('app')}
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2 rounded-xl border border-white/20 transition cursor-pointer"
+            >
+              <span>Inspect Workspace</span>
+              <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+            </button>
+            <button
+              onClick={logoutUser}
+              className="flex items-center gap-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs px-3.5 py-2 rounded-xl border border-rose-500/30 transition cursor-pointer"
+              title="Sign Out of Master HQ"
+            >
+              <Power className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-300 text-xs font-bold px-3 py-1 rounded-full border border-purple-500/40">
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>SaaS Platform Owner & Super Admin HQ</span>
+              <span>Universal Tenant Oversight & Automated Onboarding</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
               Multi-Tenant Operations Command Center
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-              You are the Master Super Admin of Velo HR. Monitor all client organizations, diagnose and resolve tenant inquiries, manage billing tiers, and inspect company workspaces in 1-click.
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              Real-time Firestore tenant management. Client businesses self-register via landing page and flow into your lead queue for 1-click 14-day trial activation.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => setIsAddTenantModalOpen(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/25 transition active:scale-95"
+              onClick={() => setActiveTab('inquiries')}
+              className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              <span>Onboard New Company</span>
-            </button>
-
-            <button
-              onClick={() => navigateTo('app')}
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl border border-white/20 transition active:scale-95"
-            >
-              <span>Back to Demo Workspace</span>
-              <ArrowRight className="w-4 h-4" />
+              <Inbox className="w-4 h-4 text-slate-950" />
+              <span>View Inquiries ({pendingLeadsCount} Pending)</span>
             </button>
           </div>
         </div>
@@ -247,10 +292,25 @@ export const SuperAdminPanel = () => {
       </div>
 
       {/* Super Admin Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('inquiries')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            activeTab === 'inquiries'
+              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <Inbox className="w-4 h-4" />
+          <span>Inquiry & Demo Requests ({leads.length})</span>
+          {pendingLeadsCount > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          )}
+        </button>
+
         <button
           onClick={() => setActiveTab('tenants')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
             activeTab === 'tenants'
               ? 'bg-purple-600 text-white shadow-md shadow-purple-600/25'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
@@ -262,7 +322,7 @@ export const SuperAdminPanel = () => {
 
         <button
           onClick={() => setActiveTab('tickets')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition relative ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer relative ${
             activeTab === 'tickets'
               ? 'bg-purple-600 text-white shadow-md shadow-purple-600/25'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
@@ -277,7 +337,7 @@ export const SuperAdminPanel = () => {
 
         <button
           onClick={() => setActiveTab('system')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
             activeTab === 'system'
               ? 'bg-purple-600 text-white shadow-md shadow-purple-600/25'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
@@ -287,6 +347,111 @@ export const SuperAdminPanel = () => {
           <span>Platform Health & Feature Flags</span>
         </button>
       </div>
+
+      {/* TAB 0: INQUIRY & DEMO REQUESTS FEED */}
+      {activeTab === 'inquiries' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span>Self-Registered Inquiries & Demo Leads</span>
+                <span className="text-xs bg-amber-500/20 text-amber-300 font-mono px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                  {leads.length} Applications
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Business owners who registered for trials or live previews. Click 'Activate Trial & Onboard' to provision their 14-day production access.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-950/80 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-800">
+                  <th className="py-3 px-4">Organization / Company</th>
+                  <th className="py-3 px-3">Authorized Contact</th>
+                  <th className="py-3 px-3">Work Email & Phone</th>
+                  <th className="py-3 px-3">Staff Size</th>
+                  <th className="py-3 px-3">Date Submitted</th>
+                  <th className="py-3 px-3">Current Status</th>
+                  <th className="py-3 px-4 text-center">Trial Provisioning</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {leads.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="py-12 text-center text-slate-500">
+                      <div className="max-w-md mx-auto space-y-2">
+                        <Inbox className="w-8 h-8 text-slate-600 mx-auto" />
+                        <p className="font-bold text-sm text-slate-300">No Pending Inquiries</p>
+                        <p className="text-xs text-slate-500">
+                          When prospective clients register via the landing page or request demo access, their applications will populate here for 1-click onboarding.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  leads.map((lead) => {
+                    const isTrialActive = lead.status === 'Trial Activated' || lead.status === 'Trial';
+                    return (
+                      <tr key={lead.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-3.5 px-4 font-bold text-white">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold text-xs shrink-0">
+                              {(lead.companyName || lead.businessName || 'V')[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <div>{lead.companyName || lead.businessName || 'Business Organization'}</div>
+                              <span className="text-[10px] text-slate-400 font-mono">ID: {lead.tenantId || lead.id}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 text-slate-300 font-medium">
+                          {lead.fullName || lead.name || 'Authorized Signatory'}
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-slate-300">
+                          <div className="text-slate-200">{lead.email}</div>
+                          <div className="text-[11px] text-slate-500">{lead.phone || '—'}</div>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-slate-300">
+                          {lead.staffCount || '15-50'} Staff
+                        </td>
+                        <td className="py-3.5 px-3 text-slate-400">
+                          {lead.submittedAt ? formatDate(lead.submittedAt) : 'Recent'}
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                            isTrialActive
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                          }`}>
+                            {isTrialActive ? 'Trial Active (14D)' : 'Pending Review'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => activateTrialTenant(lead.tenantId || lead.id)}
+                            disabled={isTrialActive}
+                            className={`inline-flex items-center gap-1.5 font-bold text-xs px-3.5 py-1.5 rounded-xl transition ${
+                              isTrialActive
+                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black shadow-md cursor-pointer active:scale-95'
+                            }`}
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>{isTrialActive ? 'Trial Activated' : 'Activate Trial & Onboard'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: TENANT COMPANIES DIRECTORY */}
       {activeTab === 'tenants' && (

@@ -10,7 +10,8 @@ import {
   Percent,
   CheckCircle2,
   Sparkles,
-  Database
+  Database,
+  Clock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isFirebaseActive } from '../services/firebase';
@@ -31,6 +32,10 @@ export const SettingsView = () => {
     pfRate: company.pfRate ? (company.pfRate * 100) : 12,
     esiRate: company.esiRate ? (company.esiRate * 100) : 0.75,
     professionalTax: company.professionalTax || 200,
+    shiftGracePeriodMins: company.shiftGracePeriodMins || 15,
+    shiftHalfDayThresholdHours: company.shiftHalfDayThresholdHours || 4.5,
+    shiftStartTime: company.shiftStartTime || '09:30',
+    shiftEndTime: company.shiftEndTime || '18:30',
   });
 
   const isConnected = isFirebaseActive();
@@ -38,10 +43,13 @@ export const SettingsView = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     updateCompany({
+      ...company,
       ...formData,
       pfRate: Number(formData.pfRate) / 100,
       esiRate: Number(formData.esiRate) / 100,
       professionalTax: Number(formData.professionalTax),
+      shiftGracePeriodMins: Number(formData.shiftGracePeriodMins),
+      shiftHalfDayThresholdHours: Number(formData.shiftHalfDayThresholdHours),
     });
   };
 
@@ -245,6 +253,79 @@ export const SettingsView = () => {
                 <span className="text-xs font-bold text-slate-500">₹</span>
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">Standard ₹200 / month</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Shift Timings & Attendance Rules */}
+        <div className="pt-4 border-t border-slate-100">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-[#1b3b6f]" />
+            <span>3. Shift Timings, Grace Period & Half-Day Rules</span>
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Shift In-Time
+              </label>
+              <input
+                type="time"
+                value={formData.shiftStartTime}
+                onChange={(e) => setFormData({ ...formData, shiftStartTime: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Default 09:30 AM</span>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Shift Out-Time
+              </label>
+              <input
+                type="time"
+                value={formData.shiftEndTime}
+                onChange={(e) => setFormData({ ...formData, shiftEndTime: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Default 06:30 PM</span>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Late Arrival Grace Period
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={formData.shiftGracePeriodMins}
+                  onChange={(e) => setFormData({ ...formData, shiftGracePeriodMins: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none"
+                />
+                <span className="text-xs font-bold text-slate-500">min</span>
+              </div>
+              <span className="text-[10px] text-slate-400 mt-1 block">Allowed late check-in without penalty</span>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Half-Day Min Threshold
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  step="0.5"
+                  min="1"
+                  max="8"
+                  value={formData.shiftHalfDayThresholdHours}
+                  onChange={(e) => setFormData({ ...formData, shiftHalfDayThresholdHours: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none"
+                />
+                <span className="text-xs font-bold text-slate-500">hours</span>
+              </div>
+              <span className="text-[10px] text-slate-400 mt-1 block">Minimum working duration for 0.5 day</span>
             </div>
           </div>
         </div>
