@@ -163,6 +163,8 @@ export const PunchModal = () => {
       canvas.width = video.videoWidth || 320;
       canvas.height = video.videoHeight || 320;
       const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1); // Mirror snapshot to match mirror preview
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
@@ -259,25 +261,45 @@ export const PunchModal = () => {
 
         {/* Content Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Employee Selector */}
+          {/* Employee Identity */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Select Staff Member
+              Staff Member Identity
             </label>
-            <div className="relative">
-              <select
-                value={selectedEmpId}
-                onChange={(e) => setSelectedEmpId(e.target.value)}
-                disabled={userRole === 'employee'}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-75 cursor-pointer"
-              >
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.designation} - {emp.department})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {userRole === 'employee' ? (
+              <div className="flex items-center gap-3 p-3 bg-blue-50/80 border border-blue-200 rounded-2xl">
+                <img
+                  src={currentEmp?.avatar}
+                  alt={currentEmp?.name}
+                  className="w-10 h-10 rounded-xl object-cover ring-2 ring-blue-300 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-900 truncate">{currentEmp?.name}</span>
+                    <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded">
+                      {currentEmp?.id}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    {currentEmp?.designation} • {currentEmp?.department}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <select
+                  value={selectedEmpId}
+                  onChange={(e) => setSelectedEmpId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} ({emp.designation} - {emp.department})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {todayRec && (
               <div className="mt-2 flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
                 <span className="text-slate-500">Current Status Today:</span>
@@ -331,9 +353,9 @@ export const PunchModal = () => {
               </label>
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                 <div className="flex items-center gap-4">
-                  <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-slate-200 border-2 border-dashed border-slate-300 flex items-center justify-center shrink-0">
+                  <div className={`relative ${isCameraActive ? 'w-24 h-24 sm:w-28 sm:h-28' : 'w-16 h-16'} rounded-2xl overflow-hidden bg-slate-200 border-2 border-dashed border-slate-300 flex items-center justify-center shrink-0 transition-all duration-300`}>
                     {isCameraActive ? (
-                      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                     ) : selfieCaptured || selfieUrl ? (
                       <img
                         src={selfieUrl || currentEmp?.avatar}

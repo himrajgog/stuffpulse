@@ -36,7 +36,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed }) => {
   const activeLoansCount = loans.filter(l => l.status === 'Active').length;
   const pendingTasksCount = tasks.filter(t => t.status === 'Pending' || t.status === 'In Progress').length;
 
-  const navItems = [
+  const adminNavItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -101,6 +101,41 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed }) => {
       desc: 'Shift rules & Firebase sync',
     },
   ];
+
+  const staffNavItems = [
+    {
+      id: 'dashboard',
+      label: 'My Portal',
+      icon: LayoutDashboard,
+      desc: 'My Clock & KPIs',
+    },
+    {
+      id: 'attendance',
+      label: 'My Attendance',
+      icon: CalendarCheck2,
+      desc: 'My monthly punch calendar',
+    },
+    {
+      id: 'expenses',
+      label: 'My Claims',
+      icon: Receipt,
+      desc: 'Submit reimbursement claims',
+    },
+    {
+      id: 'loans',
+      label: 'My Advances & Loans',
+      icon: Landmark,
+      desc: 'View active loan & advances',
+    },
+    {
+      id: 'tasks',
+      label: 'My Assigned Tasks',
+      icon: CheckSquare,
+      desc: 'Field tasks & photo proof',
+    },
+  ];
+
+  const navItems = userRole === 'employee' ? staffNavItems : adminNavItems;
 
   const handleTabClick = (id) => {
     setActiveTab(id);

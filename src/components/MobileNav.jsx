@@ -11,18 +11,34 @@ import {
 import { useApp } from '../context/AppContext';
 
 export const MobileNav = () => {
-  const { activeTab, setActiveTab, expenses, loans, setIsPunchModalOpen } = useApp();
+  const { activeTab, setActiveTab, expenses, loans, userRole, activeEmployeeId } = useApp();
 
-  const pendingExpenses = expenses.filter(e => e.status === 'Pending').length;
-  const activeLoans = loans.filter(l => l.status === 'Active').length;
+  const userExpenses = userRole === 'employee'
+    ? expenses.filter(e => e.employeeId === activeEmployeeId)
+    : expenses;
+  const userLoans = userRole === 'employee'
+    ? loans.filter(l => l.employeeId === activeEmployeeId)
+    : loans;
 
-  const tabs = [
+  const pendingExpenses = userExpenses.filter(e => e.status === 'Pending').length;
+  const activeLoans = userLoans.filter(l => l.status === 'Active').length;
+
+  const adminTabs = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'attendance', label: 'Attendance', icon: CalendarCheck2 },
     { id: 'payroll', label: 'Payroll', icon: Calculator },
     { id: 'expenses', label: 'Expenses', icon: Receipt, badge: pendingExpenses },
     { id: 'loans', label: 'Loans', icon: Landmark, badge: activeLoans },
   ];
+
+  const staffTabs = [
+    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'attendance', label: 'Attendance', icon: CalendarCheck2 },
+    { id: 'expenses', label: 'Claims', icon: Receipt, badge: pendingExpenses },
+    { id: 'loans', label: 'Advances', icon: Landmark, badge: activeLoans },
+  ];
+
+  const tabs = userRole === 'employee' ? staffTabs : adminTabs;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 lg:hidden shadow-lg safe-area-pb">

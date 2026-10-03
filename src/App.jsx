@@ -53,6 +53,11 @@ const MainLayout = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Desktop toggle
 
   const renderActiveView = () => {
+    // Role protection: Employees are blocked from accessing company management views
+    if (userRole === 'employee' && (activeTab === 'employees' || activeTab === 'payroll' || activeTab === 'settings')) {
+      return <Dashboard />;
+    }
+
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;

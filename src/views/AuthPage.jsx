@@ -171,7 +171,7 @@ export const AuthPage = () => {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Work Email or Employee ID
+                  Mobile Number, Staff ID or Work Email
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -180,16 +180,19 @@ export const AuthPage = () => {
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="e.g. admin@company.com or EMP-001"
+                    placeholder="e.g. 98765 43210, APX-101, or admin@company.com"
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-medium"
                   />
                 </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Staff: Enter your registered 10-digit mobile number • Admin: Enter company email
+                </span>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    Password / PIN
+                    4-Digit Staff PIN or Admin Password
                   </label>
                 </div>
                 <div className="relative">
@@ -199,7 +202,7 @@ export const AuthPage = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="e.g. 1234 (Staff PIN) or password"
                     className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1b3b6f] font-mono"
                   />
                   <button

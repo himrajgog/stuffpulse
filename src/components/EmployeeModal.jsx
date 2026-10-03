@@ -21,12 +21,15 @@ import { useApp } from '../context/AppContext';
 import { extractFaceDescriptor, generateDeterministicDescriptor } from '../utils/faceRecognitionEngine';
 
 export const EmployeeModal = () => {
-  const { isEmployeeModalOpen, setIsEmployeeModalOpen, editingEmployee, saveEmployee, employees } = useApp();
+  const { isEmployeeModalOpen, setIsEmployeeModalOpen, editingEmployee, saveEmployee, employees, company, showToast } = useApp();
 
   const [isCapturingCamera, setIsCapturingCamera] = useState(false);
   const camVideoRef = useRef(null);
   const camStreamRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Compute clean company prefix to prevent cross-tenant ID collisions (e.g. APX-101)
+  const companyPrefix = (company?.code || company?.name?.replace(/[^a-zA-Z]/g, '').slice(0, 3) || 'EMP').toUpperCase();
 
   const [formData, setFormData] = useState({
     id: '',
@@ -68,7 +71,7 @@ export const EmployeeModal = () => {
         }
       });
     } else {
-      const nextId = `EMP-${String((employees?.length || 0) + 1).padStart(3, '0')}`;
+      const nextId = `${companyPrefix}-${String((employees?.length || 0) + 101)}`;
       setFormData({
         id: nextId,
         name: '',
@@ -97,7 +100,17 @@ export const EmployeeModal = () => {
         status: 'Active',
       });
     }
-  }, [editingEmployee, isEmployeeModalOpen, employees]);
+  }, [editingEmployee, isEmployeeModalOpen, employees, companyPrefix]);
+
+  const handleAutoGenerateId = () => {
+    const cleanDigits = (formData.phone || '').replace(/\D/g, '');
+    if (cleanDigits.length >= 4) {
+      setFormData(prev => ({ ...prev, id: `${companyPrefix}-${cleanDigits.slice(-4)}` }));
+    } else {
+      const nextId = `${companyPrefix}-${String((employees?.length || 0) + 101)}`;
+      setFormData(prev => ({ ...prev, id: nextId }));
+    }
+  };
 
   const startQuickCamera = async () => {
     try {
@@ -126,6 +139,8 @@ export const EmployeeModal = () => {
       canvas.width = 240;
       canvas.height = 240;
       const ctx = canvas.getContext('2d');
+      ctx.translate(240, 0);
+      ctx.scale(-1, 1); // Mirror snapshot to match mirror live camera
       ctx.drawImage(video, 0, 0, 240, 240);
       const photoData = canvas.toDataURL('image/jpeg', 0.85);
 
@@ -184,10 +199,46 @@ export const EmployeeModal = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // 1. Mandatory 10-digit mobile phone number validation (collision-proof primary ID)
+    const cleanPhone = (formData.phone || '').replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      const msg = '⚠️ Please enter a valid 10-digit mobile phone number. Mobile number is required for employee login.';
+      if (showToast) showToast(msg, 'error');
+      else alert(msg);
+      return;
+    }
+
+    // 2. Duplicate phone check (primary identity)
+    const duplicatePhone = employees.find(
+      e => e.id !== formData.id && (e.phone || '').replace(/\D/g, '') === cleanPhone
+    );
+    if (duplicatePhone) {
+      const msg = `⚠️ Mobile number ${formData.phone} is already registered to ${duplicatePhone.name} (${duplicatePhone.id})! Each staff member must have a unique phone number.`;
+      if (showToast) showToast(msg, 'error');
+      else alert(msg);
+      return;
+    }
+
+    // 3. Duplicate Staff ID check (when creating new employee)
+    if (!editingEmployee) {
+      const duplicateId = employees.find(
+        e => e.id.trim().toUpperCase() === formData.id.trim().toUpperCase()
+      );
+      if (duplicateId) {
+        const msg = `⚠️ Staff ID ${formData.id} is already taken by ${duplicateId.name}! Please use a unique Staff ID.`;
+        if (showToast) showToast(msg, 'error');
+        else alert(msg);
+        return;
+      }
+    }
+
     const finalDescriptor = formData.faceDescriptor || generateDeterministicDescriptor(formData.id + formData.name);
 
     saveEmployee({
       ...formData,
+      id: formData.id.trim().toUpperCase(),
+      phone: formData.phone.trim(),
       faceEnrolled: formData.faceEnrolled || true,
       faceDescriptor: finalDescriptor,
       baseSalary: Number(formData.baseSalary),
@@ -199,6 +250,10 @@ export const EmployeeModal = () => {
         conveyance: Number(formData.allowances?.conveyance || 0),
       }
     });
+
+    if (showToast) {
+      showToast(`✅ Profile for ${formData.name} (${formData.id.trim().toUpperCase()}) saved successfully!`, 'success');
+    }
     stopQuickCamera();
   };
 
@@ -263,15 +318,23 @@ export const EmployeeModal = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Phone Number (Mandatory)</label>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    Primary Login ID
+                  </span>
+                </div>
                 <input
                   type="tel"
                   required
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="e.g., 9876543210 (10 digits)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Used for collision-proof staff self-service portal login.
+                </p>
               </div>
 
               {/* Face ID Biometric Photo & Camera Enrollment */}
@@ -310,7 +373,7 @@ export const EmployeeModal = () => {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-x-[-1]"
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-24 h-32 border-2 border-dashed border-amber-400 rounded-full" />
@@ -427,15 +490,28 @@ export const EmployeeModal = () => {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Employee ID / Staff Code</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Employee ID / Staff Code</label>
+                  <button
+                    type="button"
+                    onClick={handleAutoGenerateId}
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline cursor-pointer"
+                    title="Generate unique company-prefixed ID"
+                  >
+                    Auto-Prefix
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
                   value={formData.id}
                   onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
-                  placeholder="e.g., EMP-031"
+                  placeholder={`e.g., ${companyPrefix}-101`}
                   className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2 text-xs font-mono font-black text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
                 />
+                <p className="text-[10px] text-blue-700/80 mt-1">
+                  Prefix: <strong>{companyPrefix}</strong> (Collision-proof)
+                </p>
               </div>
 
               <div>

@@ -104,6 +104,8 @@ export const FaceEnrollmentModal = ({ isOpen, onClose, employee }) => {
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1); // Mirror capture to match live mirror preview
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const photoData = canvas.toDataURL('image/jpeg', 0.9);
 
@@ -198,7 +200,7 @@ export const FaceEnrollmentModal = ({ isOpen, onClose, employee }) => {
             autoPlay
             playsInline
             muted
-            className={`absolute inset-0 w-full h-full object-cover ${
+            className={`absolute inset-0 w-full h-full object-cover scale-x-[-1] ${
               capturedPhoto ? 'hidden' : 'block'
             }`}
           />

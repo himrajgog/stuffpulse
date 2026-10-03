@@ -24,7 +24,9 @@ export const TaskManager = () => {
     employees,
     saveTask,
     completeTaskWithProof,
-    showToast
+    showToast,
+    userRole,
+    activeEmployeeId,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'Pending' | 'In Progress' | 'Completed'
@@ -51,8 +53,13 @@ export const TaskManager = () => {
     completionNotes: '',
   });
 
+  // Scope tasks to staff member if logged in as employee
+  const scopedTasks = userRole === 'employee'
+    ? tasks.filter(task => task.assigneeId === activeEmployeeId)
+    : tasks;
+
   // Filter tasks
-  const filteredTasks = tasks.filter(task => {
+  const filteredTasks = scopedTasks.filter(task => {
     const matchesTab = activeTab === 'ALL' || task.status === activeTab;
     const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
     const matchesSearch = !search ||
@@ -124,21 +131,25 @@ export const TaskManager = () => {
               Work & Task Management
             </h2>
             <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-200">
-              {tasks.filter(t => t.status !== 'Completed').length} Open
+              {scopedTasks.filter(t => t.status !== 'Completed').length} Open
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Assign business deliverables, track due dates, and verify field photo proof upon completion.
+            {userRole === 'employee'
+              ? 'View tasks assigned to you, track deadlines, and submit real completion photo proofs.'
+              : 'Assign business deliverables, track due dates, and verify field photo proof upon completion.'}
           </p>
         </div>
 
-        <button
-          onClick={() => setIsNewTaskModalOpen(true)}
-          className="bg-slate-950 hover:bg-black text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-full flex items-center gap-2 transition active:scale-95 shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Assign New Task</span>
-        </button>
+        {userRole !== 'employee' && (
+          <button
+            onClick={() => setIsNewTaskModalOpen(true)}
+            className="bg-slate-950 hover:bg-black text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-full flex items-center gap-2 transition active:scale-95 shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Assign New Task</span>
+          </button>
+        )}
       </div>
 
       {/* Filter Tabs & Search Bar */}
@@ -147,10 +158,10 @@ export const TaskManager = () => {
         {/* Status Tabs */}
         <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl w-full md:w-auto overflow-x-auto text-xs font-bold">
           {[
-            { id: 'ALL', label: 'All Tasks', count: tasks.length },
-            { id: 'Pending', label: 'Pending', count: tasks.filter(t => t.status === 'Pending').length },
-            { id: 'In Progress', label: 'In Progress', count: tasks.filter(t => t.status === 'In Progress').length },
-            { id: 'Completed', label: 'Completed', count: tasks.filter(t => t.status === 'Completed').length },
+            { id: 'ALL', label: 'All Tasks', count: scopedTasks.length },
+            { id: 'Pending', label: 'Pending', count: scopedTasks.filter(t => t.status === 'Pending').length },
+            { id: 'In Progress', label: 'In Progress', count: scopedTasks.filter(t => t.status === 'In Progress').length },
+            { id: 'Completed', label: 'Completed', count: scopedTasks.filter(t => t.status === 'Completed').length },
           ].map(tab => (
             <button
               key={tab.id}

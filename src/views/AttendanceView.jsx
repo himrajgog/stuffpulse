@@ -32,6 +32,8 @@ const STATUS_CONFIG = {
 
 export const AttendanceView = () => {
   const {
+    userRole,
+    activeEmployeeId,
     employees,
     attendance,
     selectedMonth,
@@ -49,10 +51,13 @@ export const AttendanceView = () => {
     openReportsExport,
   } = useApp();
 
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0]?.id || '');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(
+    userRole === 'employee' ? activeEmployeeId : (employees[0]?.id || '')
+  );
   const [selectedDayDetails, setSelectedDayDetails] = useState(null);
 
-  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || employees[0] || null;
+  const effectiveEmpId = userRole === 'employee' ? activeEmployeeId : selectedEmployeeId;
+  const selectedEmployee = employees.find(e => e.id === effectiveEmpId) || employees[0] || null;
   const daysArray = getDaysArrayForMonth(selectedYear, selectedMonth);
 
   // Filter attendance for selected employee in selected month
@@ -171,19 +176,25 @@ export const AttendanceView = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Employee Selector */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5">
-            <span className="text-xs font-semibold text-slate-500">Employee:</span>
-            <select
-              value={selectedEmployeeId}
-              onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-            >
-              {employees.map(emp => (
-                <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
-              ))}
-            </select>
-          </div>
+          {/* Employee Selector - Only for Admin */}
+          {userRole !== 'employee' ? (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5">
+              <span className="text-xs font-semibold text-slate-500">Employee:</span>
+              <select
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-3 py-1.5 text-xs font-bold text-blue-900">
+              <span>My Attendance: {selectedEmployee?.name}</span>
+            </div>
+          )}
 
           {/* Month Navigator */}
           <div className="flex items-center bg-slate-100 rounded-2xl p-1 border border-slate-200 text-xs font-bold">

@@ -133,44 +133,38 @@ export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
             <span>Clock In / Out</span>
           </button>
 
-          {/* Role Switcher Pill */}
-          <div className="flex items-center bg-stone-100 p-0.5 rounded-xl border border-stone-200 text-xs font-medium">
-            <button
-              onClick={() => setUserRole('admin')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                userRole === 'admin'
-                  ? 'bg-white text-slate-900 font-semibold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              Admin
-            </button>
-            <button
-              onClick={() => setUserRole('employee')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                userRole === 'employee'
-                  ? 'bg-white text-[#1b3b6f] font-semibold shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              Staff
-            </button>
-          </div>
-
-          {/* If Employee View: Quick switch active staff */}
-          {userRole === 'employee' && (
-            <div className="hidden lg:flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs">
-              <span className="text-slate-400">As:</span>
-              <select
-                value={activeEmployeeId}
-                onChange={(e) => setActiveEmployeeId(e.target.value)}
-                className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer text-xs"
-              >
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+          {/* If Employee: Display dedicated Staff Identity Pill (No Admin Switcher!) */}
+          {userRole === 'employee' ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold">
+              <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span className="hidden sm:inline">Staff Portal</span>
             </div>
+          ) : (
+            /* Admin view only: If sandbox explorer, allow role inspection */
+            currentUser?.isSandbox && (
+              <div className="flex items-center bg-stone-100 p-0.5 rounded-xl border border-stone-200 text-xs font-medium">
+                <button
+                  onClick={() => setUserRole('admin')}
+                  className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    userRole === 'admin'
+                      ? 'bg-white text-slate-900 font-semibold shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Admin
+                </button>
+                <button
+                  onClick={() => setUserRole('employee')}
+                  className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    userRole === 'employee'
+                      ? 'bg-white text-[#1b3b6f] font-semibold shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Staff
+                </button>
+              </div>
+            )
           )}
 
           {/* Website / Landing Page Link */}

@@ -654,33 +654,52 @@ export const AppProvider = ({ children }) => {
       return adminUser;
     }
 
-    // 4. EMPLOYEE ID / PIN LOGIN
-    const matchedEmp = employees.find(e => 
-      e.id?.toLowerCase() === cleanId || 
-      e.email?.toLowerCase() === cleanId ||
-      e.phone?.replace(/\D/g, '') === cleanId.replace(/\D/g, '')
-    );
+    // 4. EMPLOYEE PHONE NUMBER / STAFF ID / PIN LOGIN
+    let matchedEmp = employees.find(e => {
+      const cleanDigits = cleanId.replace(/\D/g, '');
+      const empDigits = (e.phone || '').replace(/\D/g, '');
+      const phoneMatch = cleanDigits && empDigits && (empDigits === cleanDigits || empDigits.endsWith(cleanDigits) || cleanDigits.endsWith(empDigits));
+      const idMatch = e.id?.toLowerCase() === cleanId;
+      const emailMatch = e.email?.toLowerCase() === cleanId;
+      return phoneMatch || idMatch || emailMatch;
+    });
+
+    let empCompanyId = currentCompanyId;
+
+    // If not found in current company, perform cross-tenant global phone/ID search
+    if (!matchedEmp) {
+      const globalResult = storageService.findEmployeeGlobally(rawId);
+      if (globalResult) {
+        matchedEmp = globalResult.employee;
+        empCompanyId = globalResult.companyId;
+        if (empCompanyId !== currentCompanyId) {
+          switchCompany(empCompanyId);
+        }
+      }
+    }
 
     if (matchedEmp) {
       const validPin = matchedEmp.loginPin || '1234';
       if (cleanPass && cleanPass !== validPin && cleanPass !== 'staff123') {
-        throw new Error(`Incorrect PIN or password for ${matchedEmp.name}. (Default PIN is 1234)`);
+        throw new Error(`Incorrect 4-digit PIN for ${matchedEmp.name}. Please enter your valid staff PIN.`);
       }
 
-      const empRole = matchedEmp.role || 'employee';
       const staffUser = {
         email: matchedEmp.email,
-        role: empRole,
+        phone: matchedEmp.phone,
+        role: 'employee',
         name: matchedEmp.name,
         employeeId: matchedEmp.id,
+        companyId: empCompanyId,
         avatar: matchedEmp.avatar,
         designation: matchedEmp.designation,
         department: matchedEmp.department,
       };
 
       setCurrentUser(staffUser);
-      setUserRole(empRole);
+      setUserRole('employee');
       setActiveEmployeeId(matchedEmp.id);
+      setActiveTab('dashboard');
       localStorage.setItem('velohr_auth_user', JSON.stringify(staffUser));
       navigateTo('app');
       return staffUser;

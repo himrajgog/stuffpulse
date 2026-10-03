@@ -26,9 +26,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatTime, formatDate } from '../utils/dateUtils';
+import { EmployeeDashboard } from './EmployeeDashboard';
 
 export const Dashboard = () => {
   const {
+    userRole,
     employees,
     attendance,
     expenses,
@@ -51,6 +53,10 @@ export const Dashboard = () => {
   const [deptFilter, setDeptFilter] = useState('All'); // 'All' | 'Agents' | 'Manager' | 'Sdh'
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'IN' | 'OUT'
   const [search, setSearch] = useState('');
+
+  if (userRole === 'employee') {
+    return <EmployeeDashboard />;
+  }
 
   // Map today's attendance by employee ID
   const todayRecords = attendance.filter(a => a.date === selectedDate);

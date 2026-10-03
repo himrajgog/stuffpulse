@@ -51,6 +51,7 @@ export const QrKioskView = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [matchedStaff, setMatchedStaff] = useState(null);
+  const [matchedSnapshot, setMatchedSnapshot] = useState(null);
   const [matchConfidence, setMatchConfidence] = useState(0);
   const [livenessPassed, setLivenessPassed] = useState(true);
   const [audioFeedback, setAudioFeedback] = useState(true);
@@ -214,6 +215,24 @@ export const QrKioskView = () => {
 
   // Trigger Biometric Punch & Cooldown
   const triggerSuccessfulFacePunch = (employee, confidence) => {
+    // Capture snapshot from live video feed
+    let snapUrl = null;
+    if (videoRef.current) {
+      try {
+        const snapCanvas = document.createElement('canvas');
+        snapCanvas.width = 320;
+        snapCanvas.height = 320;
+        const sctx = snapCanvas.getContext('2d');
+        sctx.translate(320, 0);
+        sctx.scale(-1, 1); // Mirror snapshot
+        sctx.drawImage(videoRef.current, 0, 0, 320, 320);
+        snapUrl = snapCanvas.toDataURL('image/jpeg', 0.85);
+      } catch (err) {
+        console.warn('Snapshot capture fallback:', err);
+      }
+    }
+
+    setMatchedSnapshot(snapUrl);
     setPunchCooldown(true);
     setMatchedStaff(employee);
     setMatchConfidence(confidence);
@@ -231,6 +250,7 @@ export const QrKioskView = () => {
     punchIn({
       employeeId: employee.id,
       address: `${company?.name || 'Velo HR Workspace'} • AI Terminal #01`,
+      selfieUrl: snapUrl || employee.avatar,
       notes: `AI Face Biometric Recognition (${confidence}% Match, Anti-Spoofing Passed)`,
       timeStr: nowTimeStr,
     });
@@ -239,7 +259,8 @@ export const QrKioskView = () => {
       employee,
       time: nowTimeStr,
       confidence,
-      method: 'AI_FACE'
+      method: 'AI_FACE',
+      snapshot: snapUrl || employee.avatar
     });
 
     showToast(`🎯 Face match confirmed! Welcome ${employee.name} (${confidence}%)`, 'success');
@@ -247,6 +268,7 @@ export const QrKioskView = () => {
     // 4-second cooldown before recognizing the next employee
     setTimeout(() => {
       setMatchedStaff(null);
+      setMatchedSnapshot(null);
       setPunchCooldown(false);
       setIsScanning(false);
     }, 4000);
@@ -406,13 +428,13 @@ export const QrKioskView = () => {
               {/* Viewport Frame */}
               <div className="relative w-full aspect-4/3 rounded-3xl bg-slate-950 border-4 border-slate-700/80 overflow-hidden shadow-2xl flex items-center justify-center">
                 
-                {/* Live Hardware Video */}
+                {/* Live Hardware Video (Mirrored like a real mirror) */}
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className={`absolute inset-0 w-full h-full object-cover transition duration-300 ${
+                  className={`absolute inset-0 w-full h-full object-cover transition duration-300 scale-x-[-1] ${
                     cameraActive ? 'block' : 'hidden'
                   } ${isScanning ? 'brightness-110 contrast-105' : 'brightness-95'}`}
                 />
@@ -465,21 +487,38 @@ export const QrKioskView = () => {
                   </div>
                 )}
 
-                {/* Successful Match Overlay Card */}
+                {/* Successful Match Overlay Card with Live Snapshot Preview */}
                 {matchedStaff && (
-                  <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-3 z-30 animate-in zoom-in-95 duration-200">
-                    <div className="relative">
-                      <img
-                        src={matchedStaff.avatar}
-                        alt={matchedStaff.name}
-                        className="w-24 h-24 rounded-full object-cover ring-4 ring-emerald-400 shadow-xl"
-                      />
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg border-2 border-slate-950">
-                        <CheckCircle2 className="w-5 h-5" />
+                  <div className="absolute inset-0 bg-slate-950/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-3 z-30 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-center gap-3">
+                      {matchedSnapshot && (
+                        <div className="relative">
+                          <img
+                            src={matchedSnapshot}
+                            alt="Live Camera Snapshot"
+                            className="w-20 h-20 rounded-2xl object-cover ring-2 ring-amber-400 shadow-xl border-2 border-slate-900"
+                          />
+                          <span className="absolute -bottom-2 inset-x-0 mx-auto w-fit text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded shadow">
+                            Live Feed
+                          </span>
+                        </div>
+                      )}
+                      <div className="relative">
+                        <img
+                          src={matchedStaff.avatar}
+                          alt={matchedStaff.name}
+                          className="w-20 h-20 rounded-2xl object-cover ring-4 ring-emerald-400 shadow-xl border-2 border-slate-900"
+                        />
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg border-2 border-slate-950">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <span className="absolute -bottom-2 inset-x-0 mx-auto w-fit text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white px-1.5 py-0.2 rounded shadow">
+                          Profile
+                        </span>
                       </div>
                     </div>
 
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 pt-1">
                       <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
                         {matchConfidence}% Biometric Match Verified
                       </span>

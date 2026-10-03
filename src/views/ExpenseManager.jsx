@@ -31,24 +31,30 @@ export const ExpenseManager = () => {
     setIsAddExpenseModalOpen,
     setReceiptPreviewUrl,
     userRole,
+    activeEmployeeId,
   } = useApp();
 
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'Pending' | 'Approved' | 'Rejected'
   const [search, setSearch] = useState('');
   const [reviewNote, setReviewNote] = useState({});
 
+  // Scope to logged in staff member if employee role
+  const scopedExpenses = userRole === 'employee'
+    ? expenses.filter(e => e.employeeId === activeEmployeeId)
+    : expenses;
+
   // Summary Metrics
   const totalGivenAdvance = employees.reduce((sum, e) => sum + Number(e.givenAdvanceFloat || 0), 0);
-  const totalApproved = expenses
+  const totalApproved = scopedExpenses
     .filter(e => e.status === 'Approved')
     .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const totalPending = expenses
+  const totalPending = scopedExpenses
     .filter(e => e.status === 'Pending')
     .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const totalClaims = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const totalClaims = scopedExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
   // Filtered expenses
-  const filteredExpenses = expenses.filter(exp => {
+  const filteredExpenses = scopedExpenses.filter(exp => {
     const matchesSearch =
       exp.employeeName.toLowerCase().includes(search.toLowerCase()) ||
       exp.category.toLowerCase().includes(search.toLowerCase()) ||
@@ -294,20 +300,20 @@ export const ExpenseManager = () => {
                     )}
                   </div>
 
-                  {/* Right: Admin Action Buttons */}
+                  {/* Right: Admin Action Buttons / Staff Status */}
                   <div className="flex flex-wrap items-center gap-2 self-end lg:self-center">
-                    {expense.status === 'Pending' ? (
+                    {userRole !== 'employee' && expense.status === 'Pending' ? (
                       <>
                         <button
                           onClick={() => handleApprove(expense.id)}
-                          className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95"
+                          className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Approve Claim</span>
                         </button>
                         <button
                           onClick={() => handleReject(expense.id)}
-                          className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-rose-200 transition active:scale-95"
+                          className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-rose-200 transition active:scale-95 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                           <span>Reject</span>
@@ -315,7 +321,7 @@ export const ExpenseManager = () => {
                       </>
                     ) : (
                       <div className="text-xs text-slate-500 italic max-w-xs text-right">
-                        {expense.adminNotes || (expense.status === 'Approved' ? 'Approved & Synced' : 'Rejected')}
+                        {expense.adminNotes || (expense.status === 'Approved' ? 'Approved & Synced' : expense.status === 'Rejected' ? 'Rejected' : 'Pending HR Review')}
                       </div>
                     )}
 

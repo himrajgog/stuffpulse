@@ -99,6 +99,45 @@ export const storageService = {
     return employees;
   },
 
+  // Search employee across all tenants by phone number or employee ID (collision-proof)
+  findEmployeeGlobally(identifier) {
+    if (!identifier) return null;
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanDigits = cleanId.replace(/\D/g, '');
+
+    // Check all registered tenants
+    const tenants = this.getTenants();
+    for (const t of tenants) {
+      const emps = this.getEmployees(t.id);
+      const match = emps.find(e => {
+        const empDigits = (e.phone || '').replace(/\D/g, '');
+        const phoneMatch = cleanDigits && empDigits && (empDigits === cleanDigits || empDigits.endsWith(cleanDigits) || cleanDigits.endsWith(empDigits));
+        const idMatch = e.id && e.id.toLowerCase() === cleanId;
+        const emailMatch = e.email && e.email.toLowerCase() === cleanId;
+        return phoneMatch || idMatch || emailMatch;
+      });
+      if (match) {
+        return { employee: match, companyId: t.id, company: this.getCompany(t.id) };
+      }
+    }
+
+    // Also check default workspace 'comp-001'
+    const defaultEmps = this.getEmployees('comp-001');
+    const defaultMatch = defaultEmps.find(e => {
+      const empDigits = (e.phone || '').replace(/\D/g, '');
+      const phoneMatch = cleanDigits && empDigits && (empDigits === cleanDigits || empDigits.endsWith(cleanDigits) || cleanDigits.endsWith(empDigits));
+      const idMatch = e.id && e.id.toLowerCase() === cleanId;
+      const emailMatch = e.email && e.email.toLowerCase() === cleanId;
+      return phoneMatch || idMatch || emailMatch;
+    });
+
+    if (defaultMatch) {
+      return { employee: defaultMatch, companyId: 'comp-001', company: this.getCompany('comp-001') };
+    }
+
+    return null;
+  },
+
   // --- Attendance (Multi-Tenant) ---
   getAttendance(companyId = 'comp-001') {
     const key = getTenantKey(BASE_KEYS.ATTENDANCE, companyId);

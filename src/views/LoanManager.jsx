@@ -18,24 +18,29 @@ import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate } from '../utils/dateUtils';
 
 export const LoanManager = () => {
-  const { loans, employees, setIsIssueLoanModalOpen, recordLoanRepayment } = useApp();
+  const { loans, employees, setIsIssueLoanModalOpen, recordLoanRepayment, userRole, activeEmployeeId } = useApp();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'Active' | 'Closed'
   const [selectedLoanForRepayment, setSelectedLoanForRepayment] = useState(null);
   const [repaymentInput, setRepaymentInput] = useState('');
 
+  // Scope to logged in staff member if employee role
+  const scopedLoans = userRole === 'employee'
+    ? loans.filter(l => l.employeeId === activeEmployeeId)
+    : loans;
+
   // Aggregates
-  const totalDisbursed = loans.reduce((acc, l) => acc + Number(l.amount || 0), 0);
-  const totalRecovered = loans.reduce((acc, l) => acc + Number(l.totalPaid || 0), 0);
-  const totalOutstanding = loans
+  const totalDisbursed = scopedLoans.reduce((acc, l) => acc + Number(l.amount || 0), 0);
+  const totalRecovered = scopedLoans.reduce((acc, l) => acc + Number(l.totalPaid || 0), 0);
+  const totalOutstanding = scopedLoans
     .filter(l => l.status === 'Active')
     .reduce((acc, l) => acc + Number(l.remainingAmount || 0), 0);
-  const totalMonthlyEmi = loans
+  const totalMonthlyEmi = scopedLoans
     .filter(l => l.status === 'Active')
     .reduce((acc, l) => acc + Number(l.monthlyEmi || 0), 0);
 
-  const filteredLoans = loans.filter(loan => {
+  const filteredLoans = scopedLoans.filter(loan => {
     const matchesSearch =
       loan.employeeName.toLowerCase().includes(search.toLowerCase()) ||
       loan.loanType.toLowerCase().includes(search.toLowerCase()) ||
@@ -74,13 +79,15 @@ export const LoanManager = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsIssueLoanModalOpen(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/25 transition active:scale-95 self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Issue New Loan / Advance</span>
-        </button>
+        {userRole !== 'employee' && (
+          <button
+            onClick={() => setIsIssueLoanModalOpen(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/25 transition active:scale-95 self-start md:self-auto cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Issue New Loan / Advance</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}
