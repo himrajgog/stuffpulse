@@ -10,6 +10,7 @@ import {
   Scan
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { formatDate } from '../utils/dateUtils';
 
 export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
   const {
@@ -95,16 +96,11 @@ export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
           </button>
         </div>
 
-        {/* Center: Live Date Picker & Clock */}
-        <div className="hidden md:flex items-center gap-2 bg-[#FAF8F5] rounded-2xl p-1.5 px-3 border border-stone-200 shadow-inner">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+        {/* Center: Tamper-Proof Live Date & Real-Time Clock */}
+        <div className="hidden md:flex items-center gap-2 bg-[#FAF8F5] rounded-2xl p-1.5 px-3.5 border border-stone-200 shadow-inner">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
             <Calendar className="w-3.5 h-3.5 text-[#1b3b6f]" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent font-medium text-xs text-slate-800 focus:outline-none cursor-pointer"
-            />
+            <span>{formatDate(selectedDate || new Date().toISOString(), 'full')}</span>
           </div>
           <div className="h-4 w-px bg-stone-300 mx-1" />
           <div className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">

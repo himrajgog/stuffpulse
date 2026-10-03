@@ -27,6 +27,16 @@ export const INITIAL_COMPANY = {
   shiftHalfDayThresholdHours: 4.5,
   shiftStartTime: "09:30",
   shiftEndTime: "18:30",
+  geofence: {
+    lat: 28.4950,
+    lng: 77.0895,
+    radiusMeters: 200,
+    strictEnforcement: true,
+    address: "Corporate Tech Park, Sector 62, Gurugram, India",
+    branches: [
+      { id: "branch-hq", name: "Main Office Campus", lat: 28.4950, lng: 77.0895, radiusMeters: 200, address: "Corporate Tech Park, Sector 62, Gurugram, India" }
+    ]
+  },
   allowancesConfig: [
     { id: "allw-hra", name: "House Rent Allowance (HRA)", amount: 5000, type: "fixed" },
     { id: "allw-inc", name: "Monthly Performance Incentive", amount: 2500, type: "fixed" },

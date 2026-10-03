@@ -153,9 +153,65 @@ export const parseTimeToMinutes = (timeStr) => {
 };
 
 /**
- * Accurately calculates work duration between punch-in and punch-out strings, handling cross-midnight night shifts
+ * Calculates distance in meters between two GPS coordinates using Haversine formula
  */
-export const calculateWorkDuration = (inTimeStr, outTimeStr, inDateStr, outDateStr) => {
+export const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const R = 6371e3; // Earth radius in meters
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
+};
+
+/**
+ * Calculates distance in kilometers between two GPS coordinates
+ */
+export const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const meters = calculateDistanceMeters(lat1, lon1, lat2, lon2);
+  if (meters == null) return null;
+  return +(meters / 1000).toFixed(2);
+};
+
+/**
+ * Accurately calculates work duration between punch-in and punch-out strings,
+ * handling cross-midnight night shifts and multi-punch break deductions
+ */
+export const calculateWorkDuration = (inTimeStr, outTimeStr, inDateStr, outDateStr, punches = []) => {
+  // If structured punches array exists with breaks (e.g. IN -> OUT -> IN -> OUT)
+  if (Array.isArray(punches) && punches.length >= 2) {
+    let totalWorkMins = 0;
+    let currentInTime = null;
+
+    for (const p of punches) {
+      if (p.type === 'IN') {
+        currentInTime = p.time;
+      } else if (p.type === 'OUT' && currentInTime) {
+        const inMins = parseTimeToMinutes(currentInTime);
+        const outMins = parseTimeToMinutes(p.time);
+        let segmentMins = outMins - inMins;
+        if (segmentMins < 0) segmentMins += 24 * 60; // night shift crossover
+        totalWorkMins += Math.max(0, segmentMins);
+        currentInTime = null;
+      }
+    }
+
+    if (totalWorkMins > 0) {
+      const hours = Math.floor(totalWorkMins / 60);
+      const minutes = totalWorkMins % 60;
+      return `${hours}h ${minutes}m`;
+    }
+  }
+
+  // Standard 2-point calculation
   if (!inTimeStr || !outTimeStr) return '0h 0m';
   const inMins = parseTimeToMinutes(inTimeStr);
   const outMins = parseTimeToMinutes(outTimeStr);
@@ -188,5 +244,35 @@ export const evaluatePunchStatus = (punchTimeStr, shiftStartTime = '09:30', grac
   } else {
     return { status: 'Half-Day', isLate: true, lateMinutes: punchMins - shiftStartMins };
   }
+};
+
+/**
+ * Re-evaluates final status on punch-out based on total actual hours worked
+ * Prevents workers who clock out after 15 minutes from keeping full-day "Present" pay!
+ */
+export const evaluatePunchOutStatus = (totalWorkDurationStr, originalStatus = 'Present', halfDayHours = 4.5) => {
+  if (!totalWorkDurationStr || totalWorkDurationStr === '0h 0m') {
+    return originalStatus;
+  }
+
+  // Parse "Xh Ym"
+  const hMatch = totalWorkDurationStr.match(/(\d+)h/);
+  const mMatch = totalWorkDurationStr.match(/(\d+)m/);
+  const hours = hMatch ? parseInt(hMatch[1], 10) : 0;
+  const minutes = mMatch ? parseInt(mMatch[1], 10) : 0;
+  const totalHoursWorked = hours + (minutes / 60);
+
+  const threshold = Number(halfDayHours || 4.5);
+
+  // If worked under 1.5 hours, marked as Absent / Short Shift
+  if (totalHoursWorked < 1.5) {
+    return { status: 'Absent', reason: `Worked only ${totalWorkDurationStr} (Under minimum shift duration)` };
+  }
+  // If worked less than half-day threshold (e.g. < 4.5 hours), downgrade to Half-Day
+  if (totalHoursWorked < threshold) {
+    return { status: 'Half-Day', reason: `Early departure: Worked ${totalWorkDurationStr} (Under ${threshold}h threshold)` };
+  }
+
+  return { status: originalStatus, reason: `Shift complete: ${totalWorkDurationStr}` };
 };
 

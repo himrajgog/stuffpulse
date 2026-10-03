@@ -8,7 +8,7 @@ import {
   INITIAL_TASKS
 } from './seedData';
 import { isFirebaseActive, firestoreService } from './firebase';
-import { calculateWorkDuration, evaluatePunchStatus } from '../utils/dateUtils';
+import { calculateWorkDuration, evaluatePunchStatus, evaluatePunchOutStatus } from '../utils/dateUtils';
 
 const BASE_KEYS = {
   COMPANY: 'velohr_company',
@@ -105,6 +105,7 @@ export const storageService = {
     if (!identifier) return null;
     const cleanId = identifier.trim().toLowerCase();
     const cleanDigits = cleanId.replace(/\D/g, '');
+    const cleanTenDigits = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : (cleanDigits.length === 10 ? cleanDigits : null);
 
     // Check all registered tenants
     const tenants = this.getTenants();
@@ -112,7 +113,8 @@ export const storageService = {
       const emps = this.getEmployees(t.id);
       const match = emps.find(e => {
         const empDigits = (e.phone || '').replace(/\D/g, '');
-        const phoneMatch = cleanDigits && empDigits && (empDigits === cleanDigits || empDigits.endsWith(cleanDigits) || cleanDigits.endsWith(empDigits));
+        const empTenDigits = empDigits.length >= 10 ? empDigits.slice(-10) : empDigits;
+        const phoneMatch = Boolean(cleanTenDigits && empTenDigits && (empTenDigits === cleanTenDigits));
         const idMatch = e.id && e.id.toLowerCase() === cleanId;
         const emailMatch = e.email && e.email.toLowerCase() === cleanId;
         return phoneMatch || idMatch || emailMatch;
@@ -126,7 +128,8 @@ export const storageService = {
     const defaultEmps = this.getEmployees('comp-001');
     const defaultMatch = defaultEmps.find(e => {
       const empDigits = (e.phone || '').replace(/\D/g, '');
-      const phoneMatch = cleanDigits && empDigits && (empDigits === cleanDigits || empDigits.endsWith(cleanDigits) || cleanDigits.endsWith(empDigits));
+      const empTenDigits = empDigits.length >= 10 ? empDigits.slice(-10) : empDigits;
+      const phoneMatch = Boolean(cleanTenDigits && empTenDigits && (empTenDigits === cleanTenDigits));
       const idMatch = e.id && e.id.toLowerCase() === cleanId;
       const emailMatch = e.email && e.email.toLowerCase() === cleanId;
       return phoneMatch || idMatch || emailMatch;
@@ -266,21 +269,30 @@ export const storageService = {
       throw new Error(`Already clocked out at ${current.punchOut}. To log more hours, clock in again.`);
     }
 
-    // Accurately compute duration between first punchIn and punchOut
+    // Accurately compute duration between punches, accounting for break intervals
+    const company = this.getCompany(tenantId);
     const effectiveInTime = current.firstPunchIn || current.punchIn;
-    const realDuration = calculateWorkDuration(effectiveInTime, timeStr, shiftDateStr, dateStr);
-
     const newPunches = [
       ...(current.punches || []),
       { type: 'OUT', time: timeStr, address: address || "Office HQ Terminal" }
     ];
+    const realDuration = calculateWorkDuration(effectiveInTime, timeStr, shiftDateStr, dateStr, newPunches);
+
+    // Re-evaluate status based on actual shift duration
+    const outEval = evaluatePunchOutStatus(
+      realDuration,
+      current.status,
+      company?.shiftHalfDayThresholdHours || 4.5
+    );
 
     const record = {
       ...current,
+      status: outEval.status,
       currentLiveStatus: "OUT",
       punchOut: timeStr,
       outAddress: address || "Office HQ Terminal",
       workDuration: realDuration,
+      notes: outEval.reason ? `${current.notes ? current.notes + ' • ' : ''}${outEval.reason}` : current.notes,
       punches: newPunches,
       updatedAt: new Date().toISOString(),
     };

@@ -224,7 +224,8 @@ export const AppProvider = ({ children }) => {
   const punchIn = ({ employeeId, address, coordinates, selfieUrl, notes, timeStr, dateStr }) => {
     const emp = employees.find(e => e.id === employeeId);
     const actualToday = getTodayDateString();
-    const effectiveDateStr = dateStr || actualToday;
+    // Security lock: employees cannot tamper with date, punch always uses actual real-world today
+    const effectiveDateStr = (userRole === 'admin' && dateStr) ? dateStr : actualToday;
     const nowTime = timeStr || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     
     try {
@@ -254,7 +255,7 @@ export const AppProvider = ({ children }) => {
   const punchOut = ({ employeeId, address, timeStr, dateStr }) => {
     const emp = employees.find(e => e.id === employeeId);
     const actualToday = getTodayDateString();
-    const effectiveDateStr = dateStr || actualToday;
+    const effectiveDateStr = (userRole === 'admin' && dateStr) ? dateStr : actualToday;
     const nowTime = timeStr || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
     try {
@@ -280,18 +281,57 @@ export const AppProvider = ({ children }) => {
       showToast('⚠️ Permission Denied: Staff members cannot override attendance records.', 'error');
       return;
     }
+
+    const actualToday = getTodayDateString();
+    // Parse target date from recordId (e.g. ATT-EMP-101-2026-10-15)
+    const idParts = (recordId || '').split('-');
+    // Date parts are the last 3 tokens: YYYY-MM-DD
+    const targetDate = idParts.slice(-3).join('-');
+
+    if (targetDate && targetDate > actualToday) {
+      showToast('⚠️ Attendance cannot be marked or modified for future dates.', 'error');
+      return;
+    }
+
+    let found = false;
+    let targetRecord = null;
     const updated = attendance.map(a => {
       if (a.id === recordId) {
-        return {
+        found = true;
+        targetRecord = {
           ...a,
           status: newStatus,
           currentLiveStatus: newStatus === 'Present' || newStatus === 'Late' ? 'IN' : 'OUT',
+          updatedAt: new Date().toISOString(),
         };
+        return targetRecord;
       }
       return a;
     });
+
+    if (!found) {
+      // Reconstitute target employee ID from recordId
+      const empId = idParts.slice(1, -3).join('-') || employees[0]?.id;
+      const emp = employees.find(e => e.id === empId);
+      targetRecord = {
+        id: recordId,
+        companyId: currentCompanyId,
+        employeeId: empId,
+        employeeName: emp?.name || 'Staff Member',
+        date: targetDate || actualToday,
+        status: newStatus,
+        currentLiveStatus: newStatus === 'Present' || newStatus === 'Late' ? 'IN' : 'OUT',
+        punchIn: newStatus === 'Present' ? (company?.shiftStartTime || '09:30') : null,
+        punchOut: newStatus === 'Present' ? (company?.shiftEndTime || '18:30') : null,
+        workDuration: newStatus === 'Present' ? '8h 30m' : newStatus === 'Half-Day' ? '4h 0m' : '0h',
+        notes: `Manual HR Override by ${currentUser?.name || 'Admin'}`,
+        updatedAt: new Date().toISOString(),
+      };
+      updated.push(targetRecord);
+    }
+
     setAttendance(updated);
-    storageService.saveAttendanceRecord(updated.find(a => a.id === recordId), currentCompanyId);
+    storageService.saveAttendanceRecord(targetRecord, currentCompanyId);
     showToast(`Attendance marked as ${newStatus}`, 'success');
   };
 
@@ -672,8 +712,10 @@ export const AppProvider = ({ children }) => {
     // 4. EMPLOYEE PHONE NUMBER / STAFF ID / PIN LOGIN
     let matchedEmp = employees.find(e => {
       const cleanDigits = cleanId.replace(/\D/g, '');
+      const cleanTenDigits = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : (cleanDigits.length === 10 ? cleanDigits : null);
       const empDigits = (e.phone || '').replace(/\D/g, '');
-      const phoneMatch = cleanDigits && empDigits && (empDigits === cleanDigits || empDigits.endsWith(cleanDigits) || cleanDigits.endsWith(empDigits));
+      const empTenDigits = empDigits.length >= 10 ? empDigits.slice(-10) : empDigits;
+      const phoneMatch = Boolean(cleanTenDigits && empTenDigits && (empTenDigits === cleanTenDigits));
       const idMatch = e.id?.toLowerCase() === cleanId;
       const emailMatch = e.email?.toLowerCase() === cleanId;
       return phoneMatch || idMatch || emailMatch;
@@ -695,7 +737,7 @@ export const AppProvider = ({ children }) => {
 
     if (matchedEmp) {
       const validPin = matchedEmp.loginPin || '1234';
-      if (cleanPass && cleanPass !== validPin && cleanPass !== 'staff123') {
+      if (!cleanPass || cleanPass !== validPin) {
         throw new Error(`Incorrect 4-digit PIN for ${matchedEmp.name}. Please enter your valid staff PIN.`);
       }
 

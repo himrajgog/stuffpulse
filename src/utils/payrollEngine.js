@@ -30,6 +30,7 @@ export const calculateEmployeePayroll = ({
   
   // 1. Tally Attendance Days
   let presentDays = 0;
+  let lateArrivalDays = 0;
   let halfDays = 0;
   let paidLeaveDays = 0;
   let absentDays = 0;
@@ -50,8 +51,9 @@ export const calculateEmployeePayroll = ({
 
     const status = attendanceMap[dateStr];
 
-    if (status === 'Present') {
+    if (status === 'Present' || status === 'Late') {
       presentDays++;
+      if (status === 'Late') lateArrivalDays++;
     } else if (status === 'Half-Day') {
       halfDays++;
     } else if (status === 'Leave' || status === 'Paid Leave') {
@@ -205,6 +207,7 @@ export const calculateEmployeePayroll = ({
     totalDaysInMonth,
     attendanceSummary: {
       presentDays,
+      lateArrivalDays,
       halfDays,
       paidLeaveDays,
       holidayDays,

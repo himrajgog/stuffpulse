@@ -162,8 +162,9 @@ export const Dashboard = () => {
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => setIsFaceTerminalOpen(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-95"
+              onClick={() => setActiveTab('qr_kiosk')}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-95 cursor-pointer"
+              title="Launch Touchless AI Face & QR Kiosk Terminal"
             >
               <Scan className="w-4 h-4 text-cyan-300" />
               <span>AI Face Terminal</span>

@@ -150,6 +150,7 @@ export const AddExpenseModal = () => {
             <input
               type="date"
               required
+              max={getTodayDateString()}
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"

@@ -19,11 +19,12 @@ import {
   Plus
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getDaysArrayForMonth, getMonthName } from '../utils/dateUtils';
+import { getDaysArrayForMonth, getMonthName, getTodayDateString } from '../utils/dateUtils';
 
 const STATUS_CONFIG = {
   Present: { label: 'Present', bg: 'bg-emerald-500', text: 'text-emerald-700', lightBg: 'bg-emerald-50', border: 'border-emerald-200', code: 'P' },
-  'Half-Day': { label: 'Half-Day', bg: 'bg-amber-500', text: 'text-amber-700', lightBg: 'bg-amber-50', border: 'border-amber-200', code: 'HD' },
+  Late: { label: 'Late Arrival', bg: 'bg-amber-500', text: 'text-amber-800', lightBg: 'bg-amber-50', border: 'border-amber-200', code: 'LT' },
+  'Half-Day': { label: 'Half-Day', bg: 'bg-orange-500', text: 'text-orange-700', lightBg: 'bg-orange-50', border: 'border-orange-200', code: 'HD' },
   Leave: { label: 'Leave', bg: 'bg-indigo-500', text: 'text-indigo-700', lightBg: 'bg-indigo-50', border: 'border-indigo-200', code: 'L' },
   'Paid Leave': { label: 'Paid Leave', bg: 'bg-indigo-500', text: 'text-indigo-700', lightBg: 'bg-indigo-50', border: 'border-indigo-200', code: 'PL' },
   Absent: { label: 'Absent', bg: 'bg-rose-500', text: 'text-rose-700', lightBg: 'bg-rose-50', border: 'border-rose-200', code: 'A' },
@@ -49,6 +50,7 @@ export const AttendanceView = () => {
     setSelectedPunchDetail,
     setIsEmployeeModalOpen,
     openReportsExport,
+    showToast,
   } = useApp();
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(
@@ -130,6 +132,11 @@ export const AttendanceView = () => {
       return;
     }
     if (!selectedDayDetails) return;
+    const actualToday = getTodayDateString();
+    if (selectedDayDetails.dayObj?.dateString > actualToday) {
+      showToast('⚠️ Attendance cannot be recorded for future dates.', 'error');
+      return;
+    }
     const { record } = selectedDayDetails;
     updateAttendanceStatus(record.id, newStatus);
     setSelectedDayDetails({
@@ -434,8 +441,12 @@ export const AttendanceView = () => {
               </button>
             </div>
 
-            {/* Quick Status Override - Admins Only */}
-            {userRole !== 'employee' ? (
+            {/* Quick Status Override - Admins Only (Past & Present Dates Only) */}
+            {selectedDayDetails.dayObj?.dateString > getTodayDateString() ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 font-medium flex items-center gap-2">
+                <span>📅 Future calendar date. Attendance can only be marked on or after this date.</span>
+              </div>
+            ) : userRole !== 'employee' ? (
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-2">
                   Override / Mark Status (Admin):

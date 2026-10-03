@@ -17,24 +17,8 @@ import {
   Video
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getTodayDateString } from '../utils/dateUtils';
-import { extractFaceDescriptor } from '../utils/faceRecognitionEngine';
-
-// Haversine formula to verify physical distance from company HQ/store (in km)
-const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  const R = 6371; // Earth radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return +(R * c).toFixed(2);
-};
+import { getTodayDateString, calculateDistanceMeters, calculateDistanceKm } from '../utils/dateUtils';
+import { extractFaceDescriptor, computeCosineSimilarity } from '../utils/faceRecognitionEngine';
 
 export const PunchModal = () => {
   const {
@@ -131,21 +115,33 @@ export const PunchModal = () => {
           // Fallback to formatted coords
         }
 
-        // Office Geofence: default Gurgaon Tech Park coords if not explicitly set
-        const officeLat = 28.4950;
-        const officeLng = 77.0895;
-        const distKm = calculateDistanceKm(latitude, longitude, officeLat, officeLng);
-        const inside = distKm !== null && distKm <= 0.5; // Within 500m
+        // Dynamic Company Office Geofence
+        const officeLat = company?.geofence?.lat || 28.4950;
+        const officeLng = company?.geofence?.lng || 77.0895;
+        const radiusMeters = company?.geofence?.radiusMeters || 200;
+        const strictEnforcement = company?.geofence?.strictEnforcement ?? true;
+
+        const distMeters = calculateDistanceMeters(latitude, longitude, officeLat, officeLng);
+        const distKm = distMeters != null ? +(distMeters / 1000).toFixed(2) : null;
+        const inside = distMeters !== null && distMeters <= radiusMeters;
 
         setSelectedLocation({
           address: formattedAddress,
           lat: latitude,
           lng: longitude,
+          distanceMeters: distMeters,
           distanceKm: distKm,
-          isInsideGeofence: inside
+          isInsideGeofence: inside,
+          radiusMeters,
+          strictEnforcement,
         });
         setIsDetectingGps(false);
-        showToast(inside ? '📍 Verified inside office geofence!' : `📍 GPS captured (${distKm} km from office).`, 'success');
+        showToast(
+          inside
+            ? `📍 Verified inside office geofence (${distMeters}m from HQ)!`
+            : `📍 GPS captured: ${distKm} km from office (Allowed: ${radiusMeters}m).`,
+          inside ? 'success' : strictEnforcement ? 'error' : 'info'
+        );
       },
       (err) => {
         setIsDetectingGps(false);
@@ -192,7 +188,7 @@ export const PunchModal = () => {
     }
   };
 
-  // Capture snapshot from real camera with real face detection validation
+  // Capture snapshot from real camera with biometric facial matching
   const handleSnapRealCamera = () => {
     if (videoRef.current) {
       const video = videoRef.current;
@@ -205,17 +201,29 @@ export const PunchModal = () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-      // Verify that a real human face is present before accepting selfie
+      // 1. Verify that a real human face is present before accepting selfie
       const faceResult = extractFaceDescriptor(canvas);
       if (!faceResult.faceDetected) {
         showToast('⚠️ No face detected! Please position your face clearly in the camera and retake.', 'error');
         return;
       }
 
+      // 2. Anti-Buddy Punch Verification: Verify face matches employee if enrolled
+      if (currentEmp?.faceEnrolled && currentEmp?.faceDescriptor && Array.isArray(currentEmp.faceDescriptor)) {
+        const similarity = computeCosineSimilarity(faceResult.descriptor, currentEmp.faceDescriptor);
+        const matchConfidence = +(similarity * 100).toFixed(1);
+        if (matchConfidence < 80.0) {
+          showToast(`⚠️ Biometric Mismatch (${matchConfidence}%): Live face does not match registered biometric profile for ${currentEmp.name}. Buddy punching is strictly prohibited.`, 'error');
+          return;
+        }
+        showToast(`✅ Biometric Face ID Matched (${matchConfidence}% Match)`, 'success');
+      } else {
+        showToast(`✅ Live face verified (${faceResult.qualityScore}% clarity)`, 'success');
+      }
+
       setSelfieUrl(dataUrl);
       setSelfieCaptured(true);
       setIsCameraActive(false);
-      showToast(`✅ Live face verified (${faceResult.qualityScore}% clarity)`, 'success');
 
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
@@ -240,6 +248,13 @@ export const PunchModal = () => {
       }
       if (isCurrentlyIn) {
         showToast(`⚠️ You are already clocked in today at ${todayRec?.punchIn}. Select "PUNCH OUT" to end shift.`, 'error');
+        return;
+      }
+
+      // Enforce strict geofence lock if company enabled it
+      const strictLock = company?.geofence?.strictEnforcement ?? true;
+      if (strictLock && !selectedLocation.isInsideGeofence) {
+        showToast(`⚠️ Geofence Lock: You are ${selectedLocation.distanceKm || 'out of range'} km away from registered office perimeter. Strict on-premise presence within ${company?.geofence?.radiusMeters || 200}m is required.`, 'error');
         return;
       }
 
