@@ -21,11 +21,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { getTodayDateString } from '../utils/dateUtils';
 import { extractFaceDescriptor, matchLiveFace, checkLivenessMotion } from '../utils/faceRecognitionEngine';
 import confetti from 'canvas-confetti';
 
 export const QrKioskView = () => {
-  const { company, employees, attendance, punchIn, showToast } = useApp();
+  const { company, employees, attendance, punchIn, punchOut, showToast } = useApp();
   
   // Terminal Mode: 'FACE' (AI Face Recognition) | 'QR' (Dynamic QR Station)
   const [terminalMode, setTerminalMode] = useState('FACE');
@@ -52,6 +53,8 @@ export const QrKioskView = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [matchedStaff, setMatchedStaff] = useState(null);
   const [matchedSnapshot, setMatchedSnapshot] = useState(null);
+  const [matchedPunchAction, setMatchedPunchAction] = useState('IN');
+  const [matchedShiftDuration, setMatchedShiftDuration] = useState('');
   const [matchConfidence, setMatchConfidence] = useState(0);
   const [livenessPassed, setLivenessPassed] = useState(true);
   const [audioFeedback, setAudioFeedback] = useState(true);
@@ -245,30 +248,47 @@ export const QrKioskView = () => {
     } catch {}
 
     const nowTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    
-    // Save attendance in app context / Firestore
-    punchIn({
-      employeeId: employee.id,
-      address: `${company?.name || 'Velo HR Workspace'} • AI Terminal #01`,
-      selfieUrl: snapUrl || employee.avatar,
-      notes: `AI Face Biometric Recognition (${confidence}% Match, Anti-Spoofing Passed)`,
-      timeStr: nowTimeStr,
-    });
+    const actualToday = getTodayDateString();
+
+    // Check if the employee is already clocked in today
+    const existingRecord = attendance.find(a => a.employeeId === employee.id && a.date === actualToday);
+    const isCurrentlyIn = existingRecord?.currentLiveStatus === 'IN';
+    const actionType = isCurrentlyIn ? 'OUT' : 'IN';
+    setMatchedPunchAction(actionType);
+
+    if (actionType === 'OUT') {
+      const res = punchOut({
+        employeeId: employee.id,
+        address: `${company?.name || 'Velo HR Workspace'} • AI Terminal #01`,
+        timeStr: nowTimeStr,
+      });
+      setMatchedShiftDuration(res?.workDuration || existingRecord?.workDuration || '');
+      showToast(`🏁 Goodbye, ${employee.name}! Clocked OUT at ${nowTimeStr}.`, 'info');
+    } else {
+      punchIn({
+        employeeId: employee.id,
+        address: `${company?.name || 'Velo HR Workspace'} • AI Terminal #01`,
+        selfieUrl: snapUrl || employee.avatar,
+        notes: `AI Face Biometric Recognition (${confidence}% Match)`,
+        timeStr: nowTimeStr,
+      });
+      showToast(`🎯 Welcome, ${employee.name}! Clocked IN at ${nowTimeStr} (${confidence}%)`, 'success');
+    }
 
     setLastScannedPunch({
       employee,
       time: nowTimeStr,
       confidence,
       method: 'AI_FACE',
+      action: actionType,
       snapshot: snapUrl || employee.avatar
     });
-
-    showToast(`🎯 Face match confirmed! Welcome ${employee.name} (${confidence}%)`, 'success');
 
     // 4-second cooldown before recognizing the next employee
     setTimeout(() => {
       setMatchedStaff(null);
       setMatchedSnapshot(null);
+      setMatchedShiftDuration('');
       setPunchCooldown(false);
       setIsScanning(false);
     }, 4000);
@@ -519,19 +539,29 @@ export const QrKioskView = () => {
                     </div>
 
                     <div className="space-y-0.5 pt-1">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                        {matchConfidence}% Biometric Match Verified
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                        matchedPunchAction === 'OUT'
+                          ? 'text-rose-400 bg-rose-500/20 border-rose-500/30'
+                          : 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30'
+                      }`}>
+                        {matchConfidence}% Biometric Match Verified • {matchedPunchAction === 'OUT' ? 'CLOCK OUT' : 'CLOCK IN'}
                       </span>
                       <h4 className="text-xl font-extrabold text-white mt-1">
-                        Good Morning, {matchedStaff.name}!
+                        {matchedPunchAction === 'OUT' ? `Goodbye, ${matchedStaff.name}!` : `Good Morning, ${matchedStaff.name}!`}
                       </h4>
                       <p className="text-xs text-slate-300 font-medium">
                         {matchedStaff.designation} • {matchedStaff.department}
                       </p>
                     </div>
 
-                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl px-4 py-2 text-xs text-emerald-200 font-mono">
-                      Punched In at {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    <div className={`border rounded-2xl px-4 py-2 text-xs font-mono ${
+                      matchedPunchAction === 'OUT'
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                    }`}>
+                      {matchedPunchAction === 'OUT'
+                        ? `Punched Out at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}${matchedShiftDuration ? ` • Shift: ${matchedShiftDuration}` : ''}`
+                        : `Punched In at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}
                     </div>
 
                     <p className="text-[11px] text-slate-400 italic">

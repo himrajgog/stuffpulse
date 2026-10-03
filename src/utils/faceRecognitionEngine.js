@@ -147,12 +147,10 @@ export function matchLiveFace(liveDescriptor, employeesList, thresholdConfidence
   let highestScore = 0;
 
   for (const emp of employeesList) {
-    // If employee has registered face embedding
-    let enrolledVec = emp.faceDescriptor;
-
-    // Fallback: If not explicitly saved yet, synthesize deterministic vector from employee ID / avatar string
-    if (!enrolledVec || enrolledVec.length !== 128) {
-      enrolledVec = generateDeterministicDescriptor(emp.id + (emp.name || ''));
+    // Only match against employees who have actually completed biometric Face ID enrollment
+    const enrolledVec = emp.faceDescriptor;
+    if (!emp.faceEnrolled || !enrolledVec || !Array.isArray(enrolledVec) || enrolledVec.length !== 128) {
+      continue; // Never match un-enrolled staff against fake mathematical hashes!
     }
 
     const similarity = computeCosineSimilarity(liveDescriptor, enrolledVec);

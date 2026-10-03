@@ -8,6 +8,7 @@ import {
   INITIAL_TASKS
 } from './seedData';
 import { isFirebaseActive, firestoreService } from './firebase';
+import { calculateWorkDuration, evaluatePunchStatus } from '../utils/dateUtils';
 
 const BASE_KEYS = {
   COMPANY: 'velohr_company',
@@ -164,38 +165,76 @@ export const storageService = {
   punchIn({ employeeId, employeeName, address, coordinates, selfieUrl, notes, dateStr, timeStr, companyId = 'comp-001' }) {
     const tenantId = companyId || 'comp-001';
     const allAttendance = this.getAttendance(tenantId);
+    const company = this.getCompany(tenantId);
     const id = `ATT-${employeeId}-${dateStr}`;
     const existingIndex = allAttendance.findIndex(a => a.id === id);
 
-    const record = {
-      id,
-      companyId: tenantId,
-      employeeId,
-      employeeName,
-      date: dateStr,
-      status: "Present",
-      currentLiveStatus: "IN",
-      punchIn: timeStr,
-      punchOut: null,
-      inAddress: address || "Office HQ Terminal",
-      inCoordinates: coordinates || { lat: 26.8532, lng: 75.7681 },
-      selfieUrl: selfieUrl || null,
-      notes: notes || "",
-      workDuration: "In Progress",
-      updatedAt: new Date().toISOString(),
-    };
+    // Evaluate shift policy (Present vs Late vs Half-Day)
+    const shiftEvaluation = evaluatePunchStatus(
+      timeStr,
+      company?.shiftStartTime || '09:30',
+      company?.shiftGracePeriodMins ?? 15,
+      company?.shiftHalfDayThresholdHours ?? 4.5
+    );
 
     let updated;
+    let record;
+
     if (existingIndex >= 0) {
+      const existing = allAttendance[existingIndex];
+      // Prevent duplicate punch-in if already clocked IN
+      if (existing.currentLiveStatus === 'IN') {
+        throw new Error(`Already clocked in today at ${existing.punchIn}. Please clock out before clocking in again.`);
+      }
+
+      // Re-punch / return: preserve original morning punchIn time!
+      const newPunches = [
+        ...(existing.punches || []),
+        { type: 'IN', time: timeStr, address: address || "Office HQ Terminal", coordinates, selfieUrl }
+      ];
+
+      record = {
+        ...existing,
+        currentLiveStatus: "IN",
+        punchOut: null,
+        workDuration: "In Progress",
+        notes: notes ? `${existing.notes || ''} | ${notes}` : existing.notes,
+        punches: newPunches,
+        updatedAt: new Date().toISOString(),
+      };
       updated = [...allAttendance];
-      updated[existingIndex] = { ...allAttendance[existingIndex], ...record };
+      updated[existingIndex] = record;
     } else {
+      // First punch in of the day
+      record = {
+        id,
+        companyId: tenantId,
+        employeeId,
+        employeeName,
+        date: dateStr,
+        status: shiftEvaluation.status,
+        isLate: shiftEvaluation.isLate,
+        lateMinutes: shiftEvaluation.lateMinutes,
+        currentLiveStatus: "IN",
+        punchIn: timeStr,
+        firstPunchIn: timeStr,
+        punchOut: null,
+        inAddress: address || "Office HQ Terminal",
+        inCoordinates: coordinates || { lat: 26.8532, lng: 75.7681 },
+        selfieUrl: selfieUrl || null,
+        notes: notes || (shiftEvaluation.isLate ? `Late arrival by ${shiftEvaluation.lateMinutes} mins` : ""),
+        workDuration: "In Progress",
+        punches: [
+          { type: 'IN', time: timeStr, address: address || "Office HQ Terminal", coordinates, selfieUrl }
+        ],
+        updatedAt: new Date().toISOString(),
+      };
       updated = [record, ...allAttendance];
     }
 
     saveLocal(getTenantKey(BASE_KEYS.ATTENDANCE, tenantId), updated);
     if (isFirebaseActive()) {
-      firestoreService.setDocumentWithId('attendance', id, record, tenantId);
+      firestoreService.setDocumentWithId('attendance', record.id, record, tenantId);
     }
     return { updatedAttendance: updated, record };
   },
@@ -203,19 +242,46 @@ export const storageService = {
     const tenantId = companyId || 'comp-001';
     const allAttendance = this.getAttendance(tenantId);
     const id = `ATT-${employeeId}-${dateStr}`;
-    const existingIndex = allAttendance.findIndex(a => a.id === id);
+    let existingIndex = allAttendance.findIndex(a => a.id === id);
+
+    // Night Shift / Cross-Midnight shift support: check yesterday's shift if active
+    let shiftDateStr = dateStr;
+    if (existingIndex < 0) {
+      const yesterday = new Date(Date.now() - 86400000);
+      const yDateStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      const yesterdayId = `ATT-${employeeId}-${yDateStr}`;
+      const yIndex = allAttendance.findIndex(a => a.id === yesterdayId);
+      if (yIndex >= 0 && allAttendance[yIndex].currentLiveStatus === 'IN') {
+        existingIndex = yIndex;
+        shiftDateStr = yDateStr;
+      }
+    }
 
     if (existingIndex < 0) {
-      throw new Error("No punch-in record found for today.");
+      throw new Error("No active punch-in record found for today. Please clock in first.");
     }
 
     const current = allAttendance[existingIndex];
+    if (current.currentLiveStatus === 'OUT' && current.punchOut) {
+      throw new Error(`Already clocked out at ${current.punchOut}. To log more hours, clock in again.`);
+    }
+
+    // Accurately compute duration between first punchIn and punchOut
+    const effectiveInTime = current.firstPunchIn || current.punchIn;
+    const realDuration = calculateWorkDuration(effectiveInTime, timeStr, shiftDateStr, dateStr);
+
+    const newPunches = [
+      ...(current.punches || []),
+      { type: 'OUT', time: timeStr, address: address || "Office HQ Terminal" }
+    ];
+
     const record = {
       ...current,
       currentLiveStatus: "OUT",
       punchOut: timeStr,
       outAddress: address || "Office HQ Terminal",
-      workDuration: "8h 30m",
+      workDuration: realDuration,
+      punches: newPunches,
       updatedAt: new Date().toISOString(),
     };
 
@@ -224,7 +290,7 @@ export const storageService = {
     saveLocal(getTenantKey(BASE_KEYS.ATTENDANCE, tenantId), updated);
 
     if (isFirebaseActive()) {
-      firestoreService.setDocumentWithId('attendance', id, record, tenantId);
+      firestoreService.setDocumentWithId('attendance', record.id, record, tenantId);
     }
     return { updatedAttendance: updated, record };
   },

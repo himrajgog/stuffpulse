@@ -134,3 +134,59 @@ export const numberToWords = (num) => {
   }
   return str.trim() + ' Rupees Only';
 };
+
+/**
+ * Parses time string like "09:30 AM", "9:30 AM", "06:15 PM" or "18:45" to minutes from midnight
+ */
+export const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr) return 0;
+  const clean = timeStr.trim();
+  const isPM = clean.toUpperCase().includes('PM');
+  const isAM = clean.toUpperCase().includes('AM');
+  const digitsPart = clean.replace(/[^\d:]/g, '');
+  const parts = digitsPart.split(':');
+  let h = parseInt(parts[0] || '0', 10);
+  const m = parseInt(parts[1] || '0', 10);
+  if (isPM && h < 12) h += 12;
+  if (isAM && h === 12) h = 0;
+  return h * 60 + m;
+};
+
+/**
+ * Accurately calculates work duration between punch-in and punch-out strings, handling cross-midnight night shifts
+ */
+export const calculateWorkDuration = (inTimeStr, outTimeStr, inDateStr, outDateStr) => {
+  if (!inTimeStr || !outTimeStr) return '0h 0m';
+  const inMins = parseTimeToMinutes(inTimeStr);
+  const outMins = parseTimeToMinutes(outTimeStr);
+
+  let diffMins = outMins - inMins;
+  // If overnight shift across days or time rolled past midnight
+  if (diffMins < 0 || (inDateStr && outDateStr && inDateStr !== outDateStr)) {
+    diffMins += 24 * 60;
+  }
+  if (diffMins < 0) diffMins = 0;
+
+  const hours = Math.floor(diffMins / 60);
+  const minutes = diffMins % 60;
+  return `${hours}h ${minutes}m`;
+};
+
+/**
+ * Evaluates punch-in status based on company shift policies (Present, Late, Half-Day)
+ */
+export const evaluatePunchStatus = (punchTimeStr, shiftStartTime = '09:30', gracePeriodMins = 15, halfDayHours = 4.5) => {
+  const punchMins = parseTimeToMinutes(punchTimeStr);
+  const shiftStartMins = parseTimeToMinutes(shiftStartTime);
+  const graceCutoff = shiftStartMins + Number(gracePeriodMins || 15);
+  const halfDayCutoff = shiftStartMins + Math.round(Number(halfDayHours || 4.5) * 60);
+
+  if (punchMins <= graceCutoff) {
+    return { status: 'Present', isLate: false, lateMinutes: 0 };
+  } else if (punchMins <= halfDayCutoff) {
+    return { status: 'Late', isLate: true, lateMinutes: punchMins - shiftStartMins };
+  } else {
+    return { status: 'Half-Day', isLate: true, lateMinutes: punchMins - shiftStartMins };
+  }
+};
+

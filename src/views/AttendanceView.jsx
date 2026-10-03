@@ -125,6 +125,10 @@ export const AttendanceView = () => {
   };
 
   const handleStatusChange = (newStatus) => {
+    if (userRole === 'employee') {
+      showToast('⚠️ Permission Denied: Staff members cannot override attendance records.', 'error');
+      return;
+    }
     if (!selectedDayDetails) return;
     const { record } = selectedDayDetails;
     updateAttendanceStatus(record.id, newStatus);
@@ -430,27 +434,36 @@ export const AttendanceView = () => {
               </button>
             </div>
 
-            {/* Quick Status Override */}
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-2">
-                Override / Mark Status:
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {['Present', 'Half-Day', 'Leave', 'Absent', 'Holiday'].map(st => (
-                  <button
-                    key={st}
-                    onClick={() => handleStatusChange(st)}
-                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition ${
-                      selectedDayDetails.record?.status === st
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {st}
-                  </button>
-                ))}
+            {/* Quick Status Override - Admins Only */}
+            {userRole !== 'employee' ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-2">
+                  Override / Mark Status (Admin):
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Present', 'Half-Day', 'Leave', 'Absent', 'Holiday'].map(st => (
+                    <button
+                      key={st}
+                      onClick={() => handleStatusChange(st)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                        selectedDayDetails.record?.status === st
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Verified Status:</span>
+                <span className="font-extrabold text-slate-900 px-2.5 py-1 rounded-xl bg-white border border-slate-200 shadow-xs">
+                  {selectedDayDetails.record?.status || 'Not Recorded'}
+                </span>
+              </div>
+            )}
 
             {/* Timestamps & Geo Details */}
             <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-2 text-xs">

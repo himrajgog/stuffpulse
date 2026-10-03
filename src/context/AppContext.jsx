@@ -221,50 +221,65 @@ export const AppProvider = ({ children }) => {
   };
 
   // --- Attendance Actions ---
-  const punchIn = ({ employeeId, address, selfieUrl, notes, timeStr }) => {
+  const punchIn = ({ employeeId, address, coordinates, selfieUrl, notes, timeStr, dateStr }) => {
     const emp = employees.find(e => e.id === employeeId);
+    const actualToday = getTodayDateString();
+    const effectiveDateStr = dateStr || actualToday;
     const nowTime = timeStr || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     
-    const { updatedAttendance, record } = storageService.punchIn({
-      employeeId,
-      employeeName: emp ? emp.name : 'Employee',
-      address,
-      selfieUrl,
-      notes,
-      dateStr: selectedDate,
-      timeStr: nowTime,
-      companyId: currentCompanyId,
-    });
+    try {
+      const { updatedAttendance, record } = storageService.punchIn({
+        employeeId,
+        employeeName: emp ? emp.name : 'Employee',
+        address,
+        coordinates,
+        selfieUrl,
+        notes,
+        dateStr: effectiveDateStr,
+        timeStr: nowTime,
+        companyId: currentCompanyId,
+      });
 
-    setAttendance(updatedAttendance);
-    triggerCelebration();
-    showToast(`Punch In recorded for ${emp?.name || 'staff'} at ${nowTime}!`, 'success');
-    return record;
+      setAttendance(updatedAttendance);
+      triggerCelebration();
+      const statusNote = record.status === 'Late' ? ` (Marked Late by ${record.lateMinutes}m)` : '';
+      showToast(`✅ Punch In recorded for ${emp?.name || 'staff'} at ${nowTime}${statusNote}!`, record.status === 'Late' ? 'info' : 'success');
+      return record;
+    } catch (err) {
+      showToast(`⚠️ ${err.message}`, 'error');
+      return null;
+    }
   };
 
-  const punchOut = ({ employeeId, address, timeStr }) => {
+  const punchOut = ({ employeeId, address, timeStr, dateStr }) => {
     const emp = employees.find(e => e.id === employeeId);
+    const actualToday = getTodayDateString();
+    const effectiveDateStr = dateStr || actualToday;
     const nowTime = timeStr || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
     try {
       const { updatedAttendance, record } = storageService.punchOut({
         employeeId,
         address,
-        dateStr: selectedDate,
+        dateStr: effectiveDateStr,
         timeStr: nowTime,
         companyId: currentCompanyId,
       });
 
       setAttendance(updatedAttendance);
-      showToast(`Punch Out recorded for ${emp?.name || 'staff'} at ${nowTime}.`, 'info');
+      showToast(`🏁 Punch Out recorded for ${emp?.name || 'staff'} at ${nowTime}. Total shift: ${record.workDuration}`, 'info');
       return record;
     } catch (err) {
-      showToast(err.message, 'error');
+      showToast(`⚠️ ${err.message}`, 'error');
       return null;
     }
   };
 
   const updateAttendanceStatus = (recordId, newStatus) => {
+    if (userRole === 'employee') {
+      showToast('⚠️ Permission Denied: Staff members cannot override attendance records.', 'error');
+      return;
+    }
     const updated = attendance.map(a => {
       if (a.id === recordId) {
         return {

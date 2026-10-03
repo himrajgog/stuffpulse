@@ -18,14 +18,23 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getTodayDateString } from '../utils/dateUtils';
+import { extractFaceDescriptor } from '../utils/faceRecognitionEngine';
 
-const SAMPLE_LOCATIONS = [
-  { address: "Mansarovar Industrial Area, Jaipur, Rajasthan", lat: 26.8532, lng: 75.7681 },
-  { address: "DLF Cyber City, Tower B, Gurugram", lat: 28.4950, lng: 77.0895 },
-  { address: "Connaught Place, Central Delhi", lat: 28.6304, lng: 77.2177 },
-  { address: "BKC Tech Park, Bandra East, Mumbai", lat: 19.0662, lng: 72.8687 },
-  { address: "Koramangala 4th Block, Bengaluru", lat: 12.9352, lng: 77.6245 },
-];
+// Haversine formula to verify physical distance from company HQ/store (in km)
+const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return +(R * c).toFixed(2);
+};
 
 export const PunchModal = () => {
   const {
@@ -38,12 +47,19 @@ export const PunchModal = () => {
     punchOut,
     attendance,
     selectedDate,
-    showToast
+    showToast,
+    company
   } = useApp();
 
   const [selectedEmpId, setSelectedEmpId] = useState(activeEmployeeId);
   const [punchType, setPunchType] = useState('IN'); // 'IN' | 'OUT'
-  const [selectedLocation, setSelectedLocation] = useState(SAMPLE_LOCATIONS[0]);
+  const [selectedLocation, setSelectedLocation] = useState({
+    address: 'Detecting live GPS coordinates...',
+    lat: null,
+    lng: null,
+    distanceKm: null,
+    isInsideGeofence: false
+  });
   const [selfieCaptured, setSelfieCaptured] = useState(false);
   const [selfieUrl, setSelfieUrl] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -89,7 +105,7 @@ export const PunchModal = () => {
   const todayRec = attendance.find(a => a.employeeId === selectedEmpId && a.date === selectedDate);
   const isCurrentlyIn = todayRec?.currentLiveStatus === 'IN';
 
-  // Real GPS Geolocation detection
+  // Real GPS Geolocation with Geofence Distance Calculation
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
       showToast('Geolocation is not supported by your browser.', 'error');
@@ -117,26 +133,49 @@ export const PunchModal = () => {
           // Fallback to formatted coords
         }
 
+        // Office Geofence: default Gurgaon Tech Park coords if not explicitly set
+        const officeLat = 28.4950;
+        const officeLng = 77.0895;
+        const distKm = calculateDistanceKm(latitude, longitude, officeLat, officeLng);
+        const inside = distKm !== null && distKm <= 0.5; // Within 500m
+
         setSelectedLocation({
           address: formattedAddress,
           lat: latitude,
-          lng: longitude
+          lng: longitude,
+          distanceKm: distKm,
+          isInsideGeofence: inside
         });
         setIsDetectingGps(false);
-        showToast('📍 Real GPS location captured successfully!', 'success');
+        showToast(inside ? '📍 Verified inside office geofence!' : `📍 GPS captured (${distKm} km from office).`, 'success');
       },
       (err) => {
         setIsDetectingGps(false);
-        showToast(`Location error: ${err.message || 'Permission denied'}. Using preset location.`, 'info');
+        showToast(`Location error: ${err.message || 'Permission denied'}. GPS permission is required.`, 'error');
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
+  // Auto-detect GPS and set punch direction on open
+  useEffect(() => {
+    if (isPunchModalOpen) {
+      handleDetectGPS();
+      const actualToday = getTodayDateString();
+      const empId = userRole === 'employee' ? activeEmployeeId : selectedEmpId;
+      const rec = attendance.find(a => a.employeeId === empId && a.date === actualToday);
+      if (rec?.currentLiveStatus === 'IN') {
+        setPunchType('OUT');
+      } else {
+        setPunchType('IN');
+      }
+    }
+  }, [isPunchModalOpen, activeEmployeeId, userRole, selectedEmpId]);
+
   // Open Real Camera
   const handleStartRealCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      handleSimulateSelfie();
+      showToast('Camera access is not supported on this browser/device.', 'error');
       return;
     }
 
@@ -151,11 +190,11 @@ export const PunchModal = () => {
         videoRef.current.play().catch(() => {});
       }
     } catch {
-      handleSimulateSelfie();
+      showToast('Camera permission denied. Front camera is mandatory to punch attendance.', 'error');
     }
   };
 
-  // Capture snapshot from real camera
+  // Capture snapshot from real camera with real face detection validation
   const handleSnapRealCamera = () => {
     if (videoRef.current) {
       const video = videoRef.current;
@@ -168,9 +207,17 @@ export const PunchModal = () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
+      // Verify that a real human face is present before accepting selfie
+      const faceResult = extractFaceDescriptor(canvas);
+      if (!faceResult.faceDetected) {
+        showToast('⚠️ No face detected! Please position your face clearly in the camera and retake.', 'error');
+        return;
+      }
+
       setSelfieUrl(dataUrl);
       setSelfieCaptured(true);
       setIsCameraActive(false);
+      showToast(`✅ Live face verified (${faceResult.qualityScore}% clarity)`, 'success');
 
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
@@ -179,42 +226,53 @@ export const PunchModal = () => {
     }
   };
 
-  const handleSimulateSelfie = () => {
-    setSelfieCaptured(true);
-    setSelfieUrl(currentEmp?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300');
-    setIsCameraActive(false);
-  };
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelfieCaptured(true);
-        setSelfieUrl(reader.result);
-        setIsCameraActive(false);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
     const nowTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const actualToday = getTodayDateString();
 
     if (punchType === 'IN') {
+      if (!selfieCaptured || !selfieUrl) {
+        showToast('⚠️ Live face photo is required to punch in. Please snap a selfie.', 'error');
+        return;
+      }
+      if (!selectedLocation.lat) {
+        showToast('⚠️ Live GPS location is required. Please click "Detect Live GPS".', 'error');
+        return;
+      }
+      if (isCurrentlyIn) {
+        showToast(`⚠️ You are already clocked in today at ${todayRec?.punchIn}. Select "PUNCH OUT" to end shift.`, 'error');
+        return;
+      }
+
+      const locationTag = selectedLocation.isInsideGeofence
+        ? `${selectedLocation.address} (Office Geofence Verified)`
+        : `${selectedLocation.address} (Field Punch: ${selectedLocation.distanceKm}km from HQ)`;
+
       punchIn({
         employeeId: selectedEmpId,
-        address: selectedLocation.address,
-        selfieUrl: selfieUrl || currentEmp?.avatar,
-        notes: remarks || 'Mobile/Desktop Punch In',
+        address: locationTag,
+        coordinates: { lat: selectedLocation.lat, lng: selectedLocation.lng },
+        selfieUrl,
+        notes: remarks ? `${remarks} • ${locationTag}` : locationTag,
         timeStr: nowTimeStr,
+        dateStr: actualToday,
       });
     } else {
+      if (!isCurrentlyIn && !todayRec?.punchIn) {
+        showToast('⚠️ You have not clocked in today. You must clock in first before clocking out.', 'error');
+        return;
+      }
+      if (todayRec?.punchOut && todayRec?.currentLiveStatus === 'OUT') {
+        showToast(`⚠️ You have already clocked out for today at ${todayRec.punchOut}.`, 'error');
+        return;
+      }
+
       punchOut({
         employeeId: selectedEmpId,
-        address: selectedLocation.address,
+        address: selectedLocation.address || 'Office HQ Terminal',
         timeStr: nowTimeStr,
+        dateStr: actualToday,
       });
     }
 
@@ -380,7 +438,7 @@ export const PunchModal = () => {
                         <button
                           type="button"
                           onClick={handleSnapRealCamera}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-1"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <Camera className="w-3.5 h-3.5" /> Snap Photo
                         </button>
@@ -388,29 +446,20 @@ export const PunchModal = () => {
                         <button
                           type="button"
                           onClick={handleStartRealCamera}
-                          className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-1"
+                          className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <Video className="w-3.5 h-3.5 text-emerald-400" /> Open Camera
                         </button>
                       )}
-                      
-                      <button
-                        type="button"
-                        onClick={handleSimulateSelfie}
-                        className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg shadow-xs transition"
-                      >
-                        Demo Avatar
-                      </button>
-
-                      <label className="px-2.5 py-1 bg-brand-50 border border-brand-200 hover:bg-brand-100 text-brand-700 text-xs font-semibold rounded-lg cursor-pointer transition">
-                        Upload
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                      </label>
+                      {selfieCaptured && (
+                        <button
+                          type="button"
+                          onClick={handleStartRealCamera}
+                          className="px-2.5 py-1 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-100 cursor-pointer"
+                        >
+                          Retake
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -445,15 +494,26 @@ export const PunchModal = () => {
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-start gap-2.5">
               <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <input
-                  type="text"
-                  value={selectedLocation.address}
-                  onChange={(e) => setSelectedLocation({ ...selectedLocation, address: e.target.value })}
-                  className="w-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none"
-                />
-                <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center justify-between">
-                  <span>GPS: {selectedLocation.lat?.toFixed(4)}, {selectedLocation.lng?.toFixed(4)}</span>
-                  <span className="text-[10px] text-emerald-600 font-bold">Accuracy ~5m</span>
+                <p className="text-xs font-semibold text-slate-800">
+                  {selectedLocation.address || 'Click "Detect Live GPS" to fetch real device position'}
+                </p>
+                <div className="text-[11px] text-slate-500 font-mono mt-1 flex flex-wrap items-center justify-between gap-1">
+                  {selectedLocation.lat ? (
+                    <>
+                      <span>GPS: {selectedLocation.lat?.toFixed(4)}, {selectedLocation.lng?.toFixed(4)}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                        selectedLocation.isInsideGeofence
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {selectedLocation.isInsideGeofence
+                          ? '✅ Office Geofence Verified'
+                          : `📍 Field Punch (${selectedLocation.distanceKm} km from Office)`}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-rose-500 font-bold">⚠️ GPS coordinates required</span>
+                  )}
                 </div>
               </div>
             </div>
