@@ -14,6 +14,7 @@ import { useApp } from '../context/AppContext';
 export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
   const {
     company,
+    currentUser,
     selectedDate,
     setSelectedDate,
     userRole,

@@ -99,8 +99,6 @@ export const PunchModal = () => {
     };
   }, []);
 
-  if (!isPunchModalOpen) return null;
-
   const currentEmp = employees.find(e => e.id === selectedEmpId) || employees[0];
   const todayRec = attendance.find(a => a.employeeId === selectedEmpId && a.date === selectedDate);
   const isCurrentlyIn = todayRec?.currentLiveStatus === 'IN';
@@ -285,6 +283,8 @@ export const PunchModal = () => {
     setSelfieUrl('');
     setRemarks('');
   };
+
+  if (!isPunchModalOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
