@@ -6,7 +6,8 @@ import {
   UserCheck,
   Menu,
   Globe,
-  LogOut
+  LogOut,
+  Scan
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -18,6 +19,7 @@ export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
     userRole,
     setUserRole,
     setIsPunchModalOpen,
+    setActiveTab,
     employees,
     activeEmployeeId,
     setActiveEmployeeId,
@@ -112,6 +114,16 @@ export const Navbar = ({ onToggleSidebar, onToggleCollapse, isCollapsed }) => {
 
         {/* Right: Actions, Role Switcher, Quick Punch & Logout */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* AI Face Kiosk Button */}
+          <button
+            onClick={() => setActiveTab('qr_kiosk')}
+            className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold text-xs sm:text-sm px-3 sm:px-3.5 py-2 rounded-xl border border-blue-200 transition active:scale-95 cursor-pointer shadow-xs"
+            title="Launch Touchless AI Face & QR Kiosk"
+          >
+            <Scan className="w-4 h-4 text-amber-500" />
+            <span className="hidden md:inline">AI Face Kiosk</span>
+          </button>
+
           {/* Quick Punch Button */}
           <button
             onClick={() => setIsPunchModalOpen(true)}

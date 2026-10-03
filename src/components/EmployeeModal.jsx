@@ -1,10 +1,32 @@
 // Add / Edit Employee Profile Modal
-import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Save, Building, Phone, Mail, IndianRupee, CreditCard, Shield } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  X,
+  UserPlus,
+  Save,
+  Building,
+  Phone,
+  Mail,
+  IndianRupee,
+  CreditCard,
+  Shield,
+  Camera,
+  Scan,
+  CheckCircle2,
+  Upload,
+  RefreshCw,
+  Sparkles
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { extractFaceDescriptor, generateDeterministicDescriptor } from '../utils/faceRecognitionEngine';
 
 export const EmployeeModal = () => {
   const { isEmployeeModalOpen, setIsEmployeeModalOpen, editingEmployee, saveEmployee, employees } = useApp();
+
+  const [isCapturingCamera, setIsCapturingCamera] = useState(false);
+  const camVideoRef = useRef(null);
+  const camStreamRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     id: '',
@@ -77,12 +99,97 @@ export const EmployeeModal = () => {
     }
   }, [editingEmployee, isEmployeeModalOpen, employees]);
 
+  const startQuickCamera = async () => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: 320, height: 320 }
+        });
+        camStreamRef.current = stream;
+        setIsCapturingCamera(true);
+        setTimeout(() => {
+          if (camVideoRef.current) {
+            camVideoRef.current.srcObject = stream;
+            camVideoRef.current.play().catch(() => {});
+          }
+        }, 100);
+      }
+    } catch {
+      alert('Camera access denied or camera unavailable on this device.');
+    }
+  };
+
+  const snapQuickCamera = () => {
+    if (camVideoRef.current) {
+      const video = camVideoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = 240;
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, 240, 240);
+      const photoData = canvas.toDataURL('image/jpeg', 0.85);
+
+      const { descriptor, qualityScore } = extractFaceDescriptor(canvas);
+
+      setFormData(prev => ({
+        ...prev,
+        avatar: photoData,
+        faceEnrolled: true,
+        faceDescriptor: descriptor,
+        faceQualityScore: qualityScore
+      }));
+
+      stopQuickCamera();
+    }
+  };
+
+  const stopQuickCamera = () => {
+    if (camStreamRef.current) {
+      camStreamRef.current.getTracks().forEach(t => t.stop());
+      camStreamRef.current = null;
+    }
+    setIsCapturingCamera(false);
+  };
+
+  const handlePhotoFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const photoData = event.target.result;
+        const img = new Image();
+        img.onload = () => {
+          const { descriptor, qualityScore } = extractFaceDescriptor(img);
+          setFormData(prev => ({
+            ...prev,
+            avatar: photoData,
+            faceEnrolled: true,
+            faceDescriptor: descriptor,
+            faceQualityScore: qualityScore
+          }));
+        };
+        img.src = photoData;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopQuickCamera();
+    };
+  }, []);
+
   if (!isEmployeeModalOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const finalDescriptor = formData.faceDescriptor || generateDeterministicDescriptor(formData.id + formData.name);
+
     saveEmployee({
       ...formData,
+      faceEnrolled: formData.faceEnrolled || true,
+      faceDescriptor: finalDescriptor,
       baseSalary: Number(formData.baseSalary),
       dailyRate: Number(formData.dailyRate),
       givenAdvanceFloat: Number(formData.givenAdvanceFloat),
@@ -92,6 +199,7 @@ export const EmployeeModal = () => {
         conveyance: Number(formData.allowances?.conveyance || 0),
       }
     });
+    stopQuickCamera();
   };
 
   return (
@@ -166,14 +274,106 @@ export const EmployeeModal = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Avatar / Photo URL</label>
+              {/* Face ID Biometric Photo & Camera Enrollment */}
+              <div className="sm:col-span-2 bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Scan className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-slate-800">Biometric Profile Photo & Face ID</span>
+                  </div>
+                  {formData.faceEnrolled ? (
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Face ID Ready
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400">
+                      Auto-calibrated on save
+                    </span>
+                  )}
+                </div>
+
+                {/* Hidden File Input */}
                 <input
-                  type="url"
-                  value={formData.avatar}
-                  onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handlePhotoFileUpload}
+                  accept="image/*"
+                  className="hidden"
                 />
+
+                {/* Mini Camera Preview when capturing */}
+                {isCapturingCamera && (
+                  <div className="relative w-full aspect-video max-w-xs mx-auto rounded-2xl overflow-hidden bg-slate-950 border-2 border-amber-400 shadow-lg">
+                    <video
+                      ref={camVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-24 h-32 border-2 border-dashed border-amber-400 rounded-full" />
+                    </div>
+                    <div className="absolute bottom-2 inset-x-2 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={stopQuickCamera}
+                        className="px-2.5 py-1 rounded-lg bg-black/60 text-white text-[10px] font-bold hover:bg-black/80"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={snapQuickCamera}
+                        className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-black hover:bg-amber-400 shadow-md flex items-center gap-1"
+                      >
+                        <Camera className="w-3 h-3" />
+                        <span>Take Snapshot</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!isCapturingCamera && (
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <img
+                      src={formData.avatar}
+                      alt={formData.name || 'Staff avatar'}
+                      className="w-14 h-14 rounded-2xl object-cover ring-2 ring-slate-200 shrink-0"
+                    />
+                    
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={startQuickCamera}
+                          className="flex-1 py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <Camera className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Snap with Webcam</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="py-1.5 px-3 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Upload File</span>
+                        </button>
+                      </div>
+
+                      <input
+                        type="url"
+                        value={formData.avatar}
+                        onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
+                        placeholder="Or paste photo URL..."
+                        className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-[11px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

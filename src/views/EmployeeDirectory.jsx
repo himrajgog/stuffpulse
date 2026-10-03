@@ -1,4 +1,3 @@
-// Employee Directory & Profiles View
 import React, { useState } from 'react';
 import {
   Users,
@@ -15,10 +14,14 @@ import {
   Printer,
   Landmark,
   ShieldCheck,
-  CalendarCheck2
+  CalendarCheck2,
+  Scan,
+  Camera,
+  CheckCircle2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate } from '../utils/dateUtils';
+import { FaceEnrollmentModal } from '../components/FaceEnrollmentModal';
 
 export const EmployeeDirectory = () => {
   const {
@@ -47,6 +50,14 @@ export const EmployeeDirectory = () => {
     if (departmentFilter !== 'ALL' && emp.department !== departmentFilter) return false;
     return true;
   });
+
+  const [enrollingEmployee, setEnrollingEmployee] = useState(null);
+  const [isFaceEnrollOpen, setIsFaceEnrollOpen] = useState(false);
+
+  const handleOpenFaceEnrollment = (emp) => {
+    setEnrollingEmployee(emp);
+    setIsFaceEnrollOpen(true);
+  };
 
   const handleEdit = (emp) => {
     setEditingEmployee(emp);
@@ -165,11 +176,24 @@ export const EmployeeDirectory = () => {
                     </div>
                   </div>
 
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                    emp.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {emp.status}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                      emp.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {emp.status}
+                    </span>
+
+                    {emp.faceEnrolled ? (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                        <span>Face ID</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">
+                        No Face ID
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Wage Structure Pill */}
@@ -228,7 +252,7 @@ export const EmployeeDirectory = () => {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleEdit(emp)}
-                      className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 border border-slate-200 transition"
+                      className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 border border-slate-200 transition cursor-pointer"
                       title="Edit Employee Profile"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -239,7 +263,7 @@ export const EmployeeDirectory = () => {
                           deleteEmployee(emp.id);
                         }
                       }}
-                      className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition"
+                      className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
                       title="Remove Employee"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -248,8 +272,21 @@ export const EmployeeDirectory = () => {
 
                   <div className="flex items-center gap-1.5">
                     <button
+                      onClick={() => handleOpenFaceEnrollment(emp)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                        emp.faceEnrolled
+                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                          : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300'
+                      }`}
+                      title={emp.faceEnrolled ? "Update Face ID Biometrics" : "Enroll Face ID Biometrics"}
+                    >
+                      <Scan className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{emp.faceEnrolled ? 'Face ID' : 'Enroll Face'}</span>
+                    </button>
+
+                    <button
                       onClick={() => openPayslip(emp)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
                     >
                       <Printer className="w-3 h-3 text-emerald-400" />
                       <span>Payslip</span>
@@ -262,6 +299,13 @@ export const EmployeeDirectory = () => {
           })}
         </div>
       )}
+
+      {/* Face ID Biometric Enrollment Modal */}
+      <FaceEnrollmentModal
+        isOpen={isFaceEnrollOpen}
+        onClose={() => setIsFaceEnrollOpen(false)}
+        employee={enrollingEmployee}
+      />
 
     </div>
   );

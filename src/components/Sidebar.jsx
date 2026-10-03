@@ -13,7 +13,8 @@ import {
   UserCheck,
   Globe,
   CheckSquare,
-  QrCode
+  QrCode,
+  Scan
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -50,9 +51,9 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed }) => {
     },
     {
       id: 'qr_kiosk',
-      label: 'Office QR Terminal',
-      icon: QrCode,
-      desc: 'Dynamic tablet check-in',
+      label: 'AI Face & QR Kiosk',
+      icon: Scan,
+      desc: 'Touchless Face ID & QR',
       highlight: true,
     },
     {
