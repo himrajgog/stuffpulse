@@ -65,12 +65,15 @@ export const QrKioskView = () => {
   const [punchCooldown, setPunchCooldown] = useState(false);
   const [simulatedStaffId, setSimulatedStaffId] = useState(employees[0]?.id || '');
   const [lastScannedPunch, setLastScannedPunch] = useState(null);
+  const [kioskDirection, setKioskDirection] = useState('SMART'); // 'SMART' | 'IN' | 'OUT'
+  const [isBlinkTriggered, setIsBlinkTriggered] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const scanIntervalRef = useRef(null);
   const prevFrameDataRef = useRef(null);
+  const recentPunchMapRef = useRef(new Map());
 
   // Audio Chime using Web Audio API
   const playSuccessChime = () => {
@@ -194,18 +197,20 @@ export const QrKioskView = () => {
       ctx.drawImage(video, 0, 0, 160, 160);
       const frameData = ctx.getImageData(0, 0, 160, 160).data;
 
-      // Extract 128-D descriptor
-      const { descriptor, faceDetected, qualityScore } = extractFaceDescriptor(canvas);
+      // Extract 128-D descriptor, landmarks & bounding box
+      const { descriptor, faceDetected, landmarks } = extractFaceDescriptor(canvas);
 
       if (faceDetected) {
         setIsScanning(true);
 
-        // Anti-Spoofing: compare frame delta for natural biological micro-motion
+        // Anti-Spoofing & Eye Blink Detection
         let isLive = false;
+        let isBlink = false;
         if (prevFrameDataRef.current) {
-          const liveness = checkLivenessMotion(prevFrameDataRef.current, frameData);
+          const liveness = checkLivenessMotion(prevFrameDataRef.current, frameData, landmarks);
           setLivenessPassed(liveness.passed);
           isLive = liveness.passed;
+          isBlink = liveness.blinkDetected;
         } else {
           // Initialize first frame baseline
           prevFrameDataRef.current = frameData;
@@ -219,9 +224,12 @@ export const QrKioskView = () => {
         }
 
         // Match against enrolled employees
-        const matchResult = matchLiveFace(descriptor, employees, 82);
+        const matchResult = matchLiveFace(descriptor, employees, 78);
         if (matchResult.matched && matchResult.bestEmployee) {
-          triggerSuccessfulFacePunch(matchResult.bestEmployee, matchResult.confidence);
+          // Trigger when user blinks eyes in front of camera
+          if (isBlink) {
+            triggerSuccessfulFacePunch(matchResult.bestEmployee, matchResult.confidence, true);
+          }
         }
       } else {
         setIsScanning(false);
@@ -231,8 +239,10 @@ export const QrKioskView = () => {
     }
   };
 
-  // Trigger Biometric Punch & Cooldown
-  const triggerSuccessfulFacePunch = (employee, confidence) => {
+  // Trigger Biometric Punch & Cooldown with 5-Minute Anti-Flip Protection
+  const triggerSuccessfulFacePunch = (employee, confidence, fromBlink = false) => {
+    if (punchCooldown) return;
+
     // Capture snapshot from live video feed
     let snapUrl = null;
     if (videoRef.current) {
@@ -250,26 +260,70 @@ export const QrKioskView = () => {
       }
     }
 
+    const nowTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const actualToday = getTodayDateString();
+    const nowMs = Date.now();
+
+    // Check if employee is currently clocked in today
+    const existingRecord = attendance.find(a => a.employeeId === employee.id && a.date === actualToday);
+    const isCurrentlyIn = existingRecord?.currentLiveStatus === 'IN';
+    const recent = recentPunchMapRef.current.get(employee.id);
+
+    // ==============================================================
+    // ANTI-FLIP GUARD: Prevent accidental punch out on subsequent blinks
+    // If clocked in less than 5 minutes ago and kiosk is in SMART or IN mode:
+    // ==============================================================
+    if (kioskDirection !== 'OUT' && isCurrentlyIn) {
+      const lastInTimestamp = recent?.action === 'IN' ? recent.timestamp : null;
+      const isWithin5Min = lastInTimestamp ? (nowMs - lastInTimestamp < 300000) : false;
+
+      if (isWithin5Min || kioskDirection === 'IN') {
+        setMatchedSnapshot(snapUrl);
+        setPunchCooldown(true);
+        setMatchedStaff(employee);
+        setMatchConfidence(confidence);
+        setMatchedPunchAction('IN_ACTIVE');
+        setIsBlinkTriggered(true);
+
+        playSuccessChime();
+        const minsLeft = lastInTimestamp ? Math.max(1, Math.ceil((300000 - (nowMs - lastInTimestamp)) / 60000)) : 5;
+        showToast(`👋 Welcome back, ${employee.name}! You are already clocked IN (${existingRecord?.punchIn}). Anti-flip safety active for ${minsLeft}m.`, 'info');
+
+        setTimeout(() => {
+          setMatchedStaff(null);
+          setMatchedSnapshot(null);
+          setIsBlinkTriggered(false);
+          setPunchCooldown(false);
+          setIsScanning(false);
+        }, 3500);
+        return;
+      }
+    }
+
+    // Determine target punch direction
+    let actionType = 'IN';
+    if (kioskDirection === 'OUT') {
+      actionType = 'OUT';
+    } else if (kioskDirection === 'IN') {
+      actionType = 'IN';
+    } else {
+      // SMART AUTO: Clock OUT only if shift duration is past the guard threshold
+      actionType = isCurrentlyIn ? 'OUT' : 'IN';
+    }
+
     setMatchedSnapshot(snapUrl);
     setPunchCooldown(true);
     setMatchedStaff(employee);
     setMatchConfidence(confidence);
     setIsScanning(false);
+    setIsBlinkTriggered(true);
+    setMatchedPunchAction(actionType);
 
     // Audio & Visual celebratory feedback
     playSuccessChime();
     try {
       confetti({ particleCount: 75, spread: 60, origin: { y: 0.55 } });
     } catch {}
-
-    const nowTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const actualToday = getTodayDateString();
-
-    // Check if the employee is already clocked in today
-    const existingRecord = attendance.find(a => a.employeeId === employee.id && a.date === actualToday);
-    const isCurrentlyIn = existingRecord?.currentLiveStatus === 'IN';
-    const actionType = isCurrentlyIn ? 'OUT' : 'IN';
-    setMatchedPunchAction(actionType);
 
     if (actionType === 'OUT') {
       const res = punchOut({
@@ -284,11 +338,18 @@ export const QrKioskView = () => {
         employeeId: employee.id,
         address: `${company?.name || 'Velo HR Workspace'} • AI Terminal #01`,
         selfieUrl: snapUrl || employee.avatar,
-        notes: `AI Face Biometric Recognition (${confidence}% Match)`,
+        notes: `AI Face Touchless Recognition (${confidence}% Match${fromBlink ? ' • Eye Blink Verified' : ''})`,
         timeStr: nowTimeStr,
       });
       showToast(`🎯 Welcome, ${employee.name}! Clocked IN at ${nowTimeStr} (${confidence}%)`, 'success');
     }
+
+    // Record in anti-flip guard map
+    recentPunchMapRef.current.set(employee.id, {
+      timestamp: nowMs,
+      action: actionType,
+      timeStr: nowTimeStr,
+    });
 
     setLastScannedPunch({
       employee,
@@ -304,6 +365,7 @@ export const QrKioskView = () => {
       setMatchedStaff(null);
       setMatchedSnapshot(null);
       setMatchedShiftDuration('');
+      setIsBlinkTriggered(false);
       setPunchCooldown(false);
       setIsScanning(false);
     }, 4000);
@@ -317,7 +379,7 @@ export const QrKioskView = () => {
       return;
     }
     const simulatedConf = +(95 + Math.random() * 4).toFixed(1);
-    triggerSuccessfulFacePunch(targetEmp, simulatedConf);
+    triggerSuccessfulFacePunch(targetEmp, simulatedConf, false);
   };
 
   // QR Mode Scan Verification (Supports both IN and OUT)
@@ -432,6 +494,48 @@ export const QrKioskView = () => {
             </button>
           </div>
 
+          {/* Punch Direction Selector (For Dedicated In/Out Doors or Smart Auto) */}
+          {terminalMode === 'FACE' && (
+            <div className="bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setKioskDirection('SMART')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  kioskDirection === 'SMART'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Smart Auto with 5-minute guard to prevent accidental punch-out"
+              >
+                <span>Smart Auto</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKioskDirection('IN')}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  kioskDirection === 'IN'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Entrance terminal: only accepts Punch In"
+              >
+                <span>IN Only</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKioskDirection('OUT')}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  kioskDirection === 'OUT'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Exit terminal: only accepts Punch Out"
+              >
+                <span>OUT Only</span>
+              </button>
+            </div>
+          )}
+
           {/* Sound Toggle */}
           <button
             onClick={() => setAudioFeedback(prev => !prev)}
@@ -518,35 +622,51 @@ export const QrKioskView = () => {
                   </div>
                 )}
 
-                {/* Futuristic HUD Scanning Grid */}
+                {/* ============================================================== */}
+                {/* DYNAMIC GREEN RECTANGLE BOUNDING BOX HUD OVER DETECTED FACE */}
+                {/* ============================================================== */}
                 {cameraActive && !matchedStaff && (
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    {/* Oval Face Bounding Box */}
-                    <div className={`w-52 h-64 border-2 rounded-[50%] transition-all duration-300 flex flex-col items-center justify-between p-3 ${
-                      isScanning
-                        ? 'border-amber-400 bg-amber-500/10 shadow-[0_0_30px_rgba(243,156,18,0.3)] animate-pulse'
-                        : 'border-dashed border-white/40'
-                    }`}>
-                      <div className="flex items-center justify-between w-full text-[9px] font-mono text-amber-300 bg-slate-950/70 px-2 py-0.5 rounded-full">
-                        <span>{isScanning ? 'SCANNING' : 'ALIGN FACE'}</span>
-                        <span>128-D</span>
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+                    <div
+                      className={`relative w-56 h-64 sm:w-64 sm:h-72 rounded-2xl transition-all duration-200 flex flex-col items-center justify-between p-3.5 ${
+                        isBlinkTriggered
+                          ? 'border-4 border-emerald-400 bg-emerald-500/30 shadow-[0_0_35px_rgba(16,185,129,0.8)] scale-105'
+                          : isScanning
+                          ? 'border-2 border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.4)] animate-pulse'
+                          : 'border-2 border-dashed border-emerald-400/40'
+                      }`}
+                    >
+                      {/* 4 Green Corner HUD Brackets */}
+                      <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
+                      <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
+                      <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+
+                      {/* Top HUD Badge */}
+                      <div className="flex items-center justify-between w-full text-[10px] font-mono text-emerald-300 bg-slate-950/85 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${isScanning ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`} />
+                          {isScanning ? '🟢 FACE LOCKED' : 'ALIGN FACE'}
+                        </span>
+                        <span className="text-emerald-400 font-bold">128-D AI</span>
                       </div>
-                      
-                      {/* Scanning Horizontal Laser Bar */}
-                      {isScanning && (
-                        <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_10px_#f39c12] animate-bounce" />
+
+                      {/* Scanning Laser Line */}
+                      {isScanning && !isBlinkTriggered && (
+                        <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-bounce" />
                       )}
 
-                      <div className={`text-[9px] font-bold px-2.5 py-0.5 rounded-full transition ${
-                        !livenessPassed && isScanning
-                          ? 'text-rose-300 bg-rose-950/80 border border-rose-500/40 animate-pulse'
-                          : 'text-slate-300 bg-slate-950/70'
-                      }`}>
-                        {!livenessPassed && isScanning
-                          ? '⚠️ Anti-Spoof: Natural micro-motion required'
-                          : isScanning
-                          ? 'Analyzing Live 128-D Biometric Embedding...'
-                          : 'Step forward & align face'}
+                      {/* Center Blink Confirmation Checkmark */}
+                      {isBlinkTriggered && (
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-2xl animate-in zoom-in-75">
+                          <CheckCircle2 className="w-10 h-10" />
+                        </div>
+                      )}
+
+                      {/* Bottom Guidance Tag */}
+                      <div className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-emerald-200 bg-slate-950/90 border border-emerald-500/40 shadow-sm flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                        <span>{isScanning ? 'Blink Eyes to Mark Attendance' : 'Position Face in Green Box'}</span>
                       </div>
                     </div>
                   </div>
@@ -561,9 +681,9 @@ export const QrKioskView = () => {
                           <img
                             src={matchedSnapshot}
                             alt="Live Camera Snapshot"
-                            className="w-20 h-20 rounded-2xl object-cover ring-2 ring-amber-400 shadow-xl border-2 border-slate-900"
+                            className="w-20 h-20 rounded-2xl object-cover ring-2 ring-emerald-400 shadow-xl border-2 border-slate-900"
                           />
-                          <span className="absolute -bottom-2 inset-x-0 mx-auto w-fit text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded shadow">
+                          <span className="absolute -bottom-2 inset-x-0 mx-auto w-fit text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-slate-950 px-1.5 py-0.2 rounded shadow">
                             Live Feed
                           </span>
                         </div>
@@ -585,14 +705,26 @@ export const QrKioskView = () => {
 
                     <div className="space-y-0.5 pt-1">
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                        matchedPunchAction === 'OUT'
+                        matchedPunchAction === 'IN_ACTIVE'
+                          ? 'text-blue-400 bg-blue-500/20 border-blue-500/30'
+                          : matchedPunchAction === 'OUT'
                           ? 'text-rose-400 bg-rose-500/20 border-rose-500/30'
                           : 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30'
                       }`}>
-                        {matchConfidence}% Biometric Match Verified • {matchedPunchAction === 'OUT' ? 'CLOCK OUT' : 'CLOCK IN'}
+                        {matchConfidence}% Biometric Match Verified • {
+                          matchedPunchAction === 'IN_ACTIVE'
+                            ? 'ALREADY IN'
+                            : matchedPunchAction === 'OUT'
+                            ? 'CLOCK OUT'
+                            : 'CLOCK IN'
+                        }
                       </span>
                       <h4 className="text-xl font-extrabold text-white mt-1">
-                        {matchedPunchAction === 'OUT' ? `Goodbye, ${matchedStaff.name}!` : `Good Morning, ${matchedStaff.name}!`}
+                        {matchedPunchAction === 'IN_ACTIVE'
+                          ? `Already Clocked In, ${matchedStaff.name}!`
+                          : matchedPunchAction === 'OUT'
+                          ? `Goodbye, ${matchedStaff.name}!`
+                          : `Good Morning, ${matchedStaff.name}!`}
                       </h4>
                       <p className="text-xs text-slate-300 font-medium">
                         {matchedStaff.designation} • {matchedStaff.department}
@@ -600,11 +732,15 @@ export const QrKioskView = () => {
                     </div>
 
                     <div className={`border rounded-2xl px-4 py-2 text-xs font-mono ${
-                      matchedPunchAction === 'OUT'
+                      matchedPunchAction === 'IN_ACTIVE'
+                        ? 'bg-blue-500/10 border-blue-500/30 text-blue-200'
+                        : matchedPunchAction === 'OUT'
                         ? 'bg-rose-500/10 border-rose-500/30 text-rose-200'
                         : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
                     }`}>
-                      {matchedPunchAction === 'OUT'
+                      {matchedPunchAction === 'IN_ACTIVE'
+                        ? `Shift currently in progress • Protected by 5-min cooldown guard`
+                        : matchedPunchAction === 'OUT'
                         ? `Punched Out at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}${matchedShiftDuration ? ` • Shift: ${matchedShiftDuration}` : ''}`
                         : `Punched In at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}
                     </div>

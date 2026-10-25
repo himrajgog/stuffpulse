@@ -191,16 +191,16 @@ export const FaceTerminalModal = () => {
           {/* Vignette & scan overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
 
-          {/* AI Face Scanning Bounding Box [   ] */}
-          <div className={`absolute w-44 h-44 sm:w-52 sm:h-52 rounded-2xl transition-all duration-300 pointer-events-none flex items-center justify-center ${
+          {/* AI Face Scanning Green Rectangle HUD [   ] */}
+          <div className={`absolute w-48 h-56 sm:w-56 sm:h-64 rounded-2xl transition-all duration-300 pointer-events-none flex items-center justify-center ${
             scanState === 'matched'
-              ? 'border-4 border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/40'
+              ? 'border-4 border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/50'
               : scanState === 'scanning'
-              ? 'border-2 border-blue-400 animate-pulse bg-blue-500/10'
-              : 'border-2 border-dashed border-white/60'
+              ? 'border-2 border-emerald-400 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.35)] animate-pulse'
+              : 'border-2 border-dashed border-emerald-400/50'
           }`}>
             
-            {/* Corner Brackets */}
+            {/* Green Corner Brackets */}
             <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
             <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
             <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />

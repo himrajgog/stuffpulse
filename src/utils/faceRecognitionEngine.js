@@ -35,7 +35,10 @@ export function extractFaceDescriptor(sourceElement) {
   const binCount = 128;
   const pixelsPerBin = Math.floor((width * height) / binCount);
 
-  let activePixels = 0;
+  let minX = width;
+  let maxX = 0;
+  let minY = height;
+  let maxY = 0;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -57,6 +60,10 @@ export function extractFaceDescriptor(sourceElement) {
       const isSkinTone = r > 70 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 10;
       if (inFaceOval && isSkinTone) {
         skinTonePixels++;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
       }
 
       // Map to 128 spatial feature sectors (16 radial angular sectors x 8 concentric rings)
@@ -82,6 +89,19 @@ export function extractFaceDescriptor(sourceElement) {
 
   const qualityScore = Math.min(99.4, Math.max(30.0, +(skinDensity * 90 + (avgLuminance / 255) * 40).toFixed(1)));
 
+  // Bounding box calculation (percentage coordinates)
+  const box = faceDetected && skinTonePixels > 15 ? {
+    x: Math.max(10, Math.min(65, Math.round((minX / width) * 100))),
+    y: Math.max(8, Math.min(65, Math.round((minY / height) * 100))),
+    width: Math.max(30, Math.min(80, Math.round(((maxX - minX) / width) * 100))),
+    height: Math.max(38, Math.min(85, Math.round(((maxY - minY) / height) * 100))),
+  } : {
+    x: 20,
+    y: 12,
+    width: 60,
+    height: 74,
+  };
+
   // L2 Normalization of the 128-D descriptor vector
   let sumSq = 0;
   for (let i = 0; i < 128; i++) {
@@ -105,7 +125,8 @@ export function extractFaceDescriptor(sourceElement) {
     descriptor,
     qualityScore,
     faceDetected,
-    landmarks
+    landmarks,
+    box,
   };
 }
 
@@ -197,11 +218,50 @@ export function generateDeterministicDescriptor(seedStr) {
 }
 
 /**
+ * Detects an intentional or natural eye blink by comparing eye-region luminance variations
+ * between consecutive video frames.
+ */
+export function detectEyeBlink(prevFrameData, currFrameData, landmarks, width = 160, height = 160) {
+  if (!prevFrameData || !currFrameData || prevFrameData.length !== currFrameData.length) {
+    return { isBlink: false, eyeDelta: 0 };
+  }
+
+  // Eye region coordinates around landmarks
+  const eyeYMin = Math.max(0, Math.floor(landmarks?.eyeL ? landmarks.eyeL[1] - 12 : 36));
+  const eyeYMax = Math.min(height, Math.floor(landmarks?.eyeL ? landmarks.eyeL[1] + 16 : 74));
+  const eyeXMin = Math.max(0, Math.floor(landmarks?.eyeL ? landmarks.eyeL[0] - 15 : 28));
+  const eyeXMax = Math.min(width, Math.floor(landmarks?.eyeR ? landmarks.eyeR[0] + 15 : 132));
+
+  let eyeDiffSum = 0;
+  let eyePixels = 0;
+
+  for (let y = eyeYMin; y < eyeYMax; y += 2) {
+    for (let x = eyeXMin; x < eyeXMax; x += 2) {
+      const idx = (y * width + x) * 4;
+      const dr = Math.abs(prevFrameData[idx] - currFrameData[idx]);
+      const dg = Math.abs(prevFrameData[idx + 1] - currFrameData[idx + 1]);
+      const db = Math.abs(prevFrameData[idx + 2] - currFrameData[idx + 2]);
+      eyeDiffSum += (dr + dg + db) / 3;
+      eyePixels++;
+    }
+  }
+
+  const eyeAvgDelta = eyePixels > 0 ? (eyeDiffSum / eyePixels) : 0;
+  // A blink causes a rapid change in the eye region
+  const isBlink = eyeAvgDelta > 2.0 && eyeAvgDelta < 48.0;
+
+  return {
+    isBlink,
+    eyeDelta: eyeAvgDelta
+  };
+}
+
+/**
  * Liveness Anti-Spoofing: Compares two consecutive video frames to ensure natural micro-motion
  */
-export function checkLivenessMotion(prevFrameData, currFrameData) {
+export function checkLivenessMotion(prevFrameData, currFrameData, landmarks = null) {
   if (!prevFrameData || !currFrameData || prevFrameData.length !== currFrameData.length) {
-    return { passed: true, score: 94 };
+    return { passed: true, score: 94, blinkDetected: false };
   }
 
   let diffSum = 0;
@@ -217,13 +277,17 @@ export function checkLivenessMotion(prevFrameData, currFrameData) {
   }
 
   const avgDiff = diffSum / samples;
-  // Natural human micro-motion should be between 1.2 and 45.0 (completely 0 indicates a static printed photo)
+  // Natural human micro-motion should be between 0.8 and 60.0
   const isNatural = avgDiff > 0.8 && avgDiff < 60.0;
   const livenessScore = isNatural ? +(95 + Math.random() * 4).toFixed(1) : 42.0;
+
+  const blink = detectEyeBlink(prevFrameData, currFrameData, landmarks);
 
   return {
     passed: isNatural,
     score: livenessScore,
-    diffDelta: avgDiff
+    diffDelta: avgDiff,
+    blinkDetected: blink.isBlink,
+    eyeDelta: blink.eyeDelta,
   };
 }
