@@ -21,6 +21,7 @@ import { LoanManager } from './views/LoanManager';
 import { TaskManager } from './views/TaskManager';
 import { SettingsView } from './views/SettingsView';
 import { QrKioskView } from './views/QrKioskView';
+import { TabletKioskView } from './views/TabletKioskView';
 import { SetupWizard } from './components/SetupWizard';
 
 // Modals
@@ -158,6 +159,84 @@ const MainLayout = () => {
   );
 };
 
+const SuperAdminGate = () => {
+  const { loginUser, navigateTo, showToast } = useApp();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await loginUser({ identifier: 'admin@velohr.com', password });
+      showToast('👑 Master Super Admin Verified. Welcome to Operations HQ!', 'success');
+    } catch (err) {
+      setError(err.message || 'Invalid Master Password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-2xl">
+        <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+          <Crown className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-xl font-black text-white">Super Admin Command Center</h2>
+          <p className="text-xs text-slate-400">
+            Protected Platform Owner HQ. Enter your Master Super Admin password to unlock multi-tenant diagnostics.
+          </p>
+        </div>
+
+        <form onSubmit={handleUnlock} className="space-y-3">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError('');
+            }}
+            placeholder="Enter Master Password"
+            required
+            autoFocus
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-center tracking-widest"
+          />
+          {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer disabled:opacity-60"
+          >
+            {loading ? 'Verifying...' : 'Unlock Super Admin HQ'}
+          </button>
+        </form>
+
+        <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+          <button
+            type="button"
+            onClick={() => navigateTo('login')}
+            className="text-slate-400 hover:text-white transition cursor-pointer"
+          >
+            Standard Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateTo('landing')}
+            className="text-amber-400 hover:text-amber-300 font-bold transition cursor-pointer"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+      <ToastContainer />
+    </div>
+  );
+};
+
 const AppRoot = () => {
   const { appMode, currentUser, navigateTo } = useApp();
 
@@ -182,31 +261,21 @@ const AppRoot = () => {
   if (appMode === 'superadmin') {
     // Access control: only superadmin can view SuperAdminPanel
     if (currentUser?.role !== 'superadmin') {
-      return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
-              <Crown className="w-6 h-6" />
-            </div>
-            <h2 className="text-xl font-bold text-white">Super Admin Access Protected</h2>
-            <p className="text-xs text-slate-400">
-              Only the Master Super Admin can access the platform owner command center. Please sign in with master credentials.
-            </p>
-            <button
-              onClick={() => navigateTo('login')}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition"
-            >
-              Sign In as Master Admin
-            </button>
-          </div>
-          <ToastContainer />
-        </div>
-      );
+      return <SuperAdminGate />;
     }
 
     return (
       <>
         <SuperAdminPanel />
+        <ToastContainer />
+      </>
+    );
+  }
+
+  if (appMode === 'kiosk') {
+    return (
+      <>
+        <TabletKioskView />
         <ToastContainer />
       </>
     );
@@ -218,6 +287,16 @@ const AppRoot = () => {
         <PayrollOnboarding />
         <ToastContainer />
       </div>
+    );
+  }
+
+  // Security Bridge: Unauthenticated visitors must sign in before accessing the workspace
+  if (!currentUser) {
+    return (
+      <>
+        <AuthPage />
+        <ToastContainer />
+      </>
     );
   }
 

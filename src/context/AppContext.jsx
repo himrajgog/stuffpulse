@@ -13,6 +13,7 @@ export const AppProvider = ({ children }) => {
   const [appMode, setAppMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash;
+      if (hash === '#kiosk' || hash === '#terminal') return 'kiosk';
       if (hash === '#login') return 'login';
       if (hash === '#app' || hash === '#workspace') return 'app';
       if (hash === '#superadmin') return 'superadmin';
@@ -29,7 +30,9 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash;
-      if (hash === '#login') {
+      if (hash === '#kiosk' || hash === '#terminal') {
+        setAppMode('kiosk');
+      } else if (hash === '#login') {
         setAppMode('login');
       } else if (hash === '#app' || hash === '#workspace') {
         setAppMode('app');

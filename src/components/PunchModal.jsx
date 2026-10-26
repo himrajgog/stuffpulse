@@ -379,11 +379,19 @@ export const PunchModal = () => {
 
     // Check strict geofence lock
     const strictLock = company?.geofence?.strictEnforcement ?? true;
-    if (strictLock && loc.lat && !loc.isInsideGeofence) {
-      showToast(`⚠️ Geofence Lock: You are ${loc.distanceKm || 'out of range'} km away from office perimeter. Punch restricted.`, 'error');
-      setAutoPunchProcessing(false);
-      setIsBlinkTriggered(false);
-      return;
+    if (strictLock) {
+      if (!loc.lat) {
+        showToast('⚠️ GPS Required: Location permission is required to verify office perimeter boundary.', 'error');
+        setAutoPunchProcessing(false);
+        setIsBlinkTriggered(false);
+        return;
+      }
+      if (!loc.isInsideGeofence) {
+        showToast(`⚠️ Geofence Lock: You are ${loc.distanceKm || 'out of range'} km away from office perimeter. Punch restricted.`, 'error');
+        setAutoPunchProcessing(false);
+        setIsBlinkTriggered(false);
+        return;
+      }
     }
 
     const locationTag = loc.isInsideGeofence
@@ -424,6 +432,10 @@ export const PunchModal = () => {
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       const faceResult = extractFaceDescriptor(canvas);
+      if (faceResult.handDetected) {
+        showToast('⚠️ Obstruction / Hand Detected on lens. Step back and show your face.', 'error');
+        return;
+      }
       if (!faceResult.faceDetected) {
         showToast('⚠️ No face detected in frame. Please align your face inside the green rectangle.', 'error');
         return;
@@ -455,9 +467,15 @@ export const PunchModal = () => {
       }
 
       const strictLock = company?.geofence?.strictEnforcement ?? true;
-      if (strictLock && !selectedLocation.isInsideGeofence) {
-        showToast(`⚠️ Geofence Lock: Outside allowed ${company?.geofence?.radiusMeters || 200}m office boundary.`, 'error');
-        return;
+      if (strictLock) {
+        if (!selectedLocation.lat) {
+          showToast('⚠️ GPS Required: Location permission is required to verify office perimeter boundary.', 'error');
+          return;
+        }
+        if (!selectedLocation.isInsideGeofence) {
+          showToast(`🔴 Geofence Violation: You are ${selectedLocation.distanceKm || 'out of range'} km away from office perimeter (${company?.geofence?.radiusMeters || 200}m allowed). Punch In rejected.`, 'error');
+          return;
+        }
       }
 
       const locationTag = selectedLocation.isInsideGeofence
@@ -485,6 +503,18 @@ export const PunchModal = () => {
       if (todayRec?.punchOut && todayRec?.currentLiveStatus === 'OUT') {
         showToast(`⚠️ Already clocked out today at ${todayRec.punchOut}.`, 'error');
         return;
+      }
+
+      const strictLock = company?.geofence?.strictEnforcement ?? true;
+      if (strictLock) {
+        if (!selectedLocation.lat) {
+          showToast('⚠️ GPS Required: Location permission is required to verify office perimeter boundary.', 'error');
+          return;
+        }
+        if (!selectedLocation.isInsideGeofence) {
+          showToast(`🔴 Geofence Violation: You are ${selectedLocation.distanceKm || 'out of range'} km away from office perimeter. Punch Out rejected.`, 'error');
+          return;
+        }
       }
 
       punchOut({

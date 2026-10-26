@@ -47,6 +47,7 @@ export const SettingsView = () => {
     geofenceRadius: company.geofence?.radiusMeters || 200,
     geofenceStrict: company.geofence?.strictEnforcement ?? true,
     geofenceAddress: company.geofence?.address || company.address || 'Corporate Office HQ',
+    adminPin: company.adminPin || '1234',
   });
 
   const isConnected = isFirebaseActive();
@@ -99,6 +100,7 @@ export const SettingsView = () => {
     updateCompany({
       ...company,
       ...formData,
+      adminPin: String(formData.adminPin || '1234'),
       pfRate: Number(formData.pfRate) / 100,
       esiRate: Number(formData.esiRate) / 100,
       professionalTax: Number(formData.professionalTax),
@@ -517,6 +519,38 @@ export const SettingsView = () => {
               />
               <div className="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
+          </div>
+        </div>
+
+        {/* 5. Master Admin Security & Tablet Kiosk PIN */}
+        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-card space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm">
+              5
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-sm">
+                Master Admin Security & Tablet Kiosk PIN
+              </h3>
+              <p className="text-xs text-slate-500">
+                4-digit PIN required to unlock workstation settings and exit standalone Tablet Kiosk Mode.
+              </p>
+            </div>
+          </div>
+
+          <div className="max-w-xs space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+              Admin Exit PIN (4 Digits)
+            </label>
+            <input
+              type="password"
+              maxLength={6}
+              value={formData.adminPin}
+              onChange={(e) => setFormData({ ...formData, adminPin: e.target.value.replace(/\D/g, '') })}
+              placeholder="1234"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-mono tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 w-full"
+            />
+            <span className="text-[10px] text-slate-400 block">Default: 1234. Keep this confidential among office managers.</span>
           </div>
         </div>
 

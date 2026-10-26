@@ -595,6 +595,18 @@ export const QrKioskView = () => {
             {audioFeedback ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
           </button>
 
+          {/* Standalone Tablet Kiosk Mode Launch Button */}
+          <button
+            onClick={() => {
+              window.location.hash = '#kiosk';
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-[#1b3b6f] hover:bg-blue-700 text-white text-xs font-black transition shadow-xs cursor-pointer"
+            title="Launch Dedicated Fullscreen Tablet Kiosk for Office Tablets & iPads"
+          >
+            <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Launch Tablet Kiosk</span>
+          </button>
+
           {/* Terminal Clock Badge */}
           <div className="bg-[#FAF8F5] border border-stone-200 rounded-2xl px-4 py-1.5 text-right">
             <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">Terminal Clock</span>
