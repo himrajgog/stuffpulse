@@ -139,10 +139,10 @@ export const QrKioskView = () => {
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
         });
         streamRef.current = stream;
+        setCameraActive(true);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play().catch(() => {});
-          setCameraActive(true);
         }
       }
     } catch (err) {
@@ -150,6 +150,16 @@ export const QrKioskView = () => {
       setCameraActive(false);
     }
   };
+
+  // Ensure video element plays and receives stream whenever cameraActive or video mounts
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraActive, terminalMode]);
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -586,8 +596,8 @@ export const QrKioskView = () => {
                 </p>
               </div>
 
-              {/* Viewport Frame */}
-              <div className="relative w-full aspect-4/3 rounded-3xl bg-slate-950 border-4 border-slate-700/80 overflow-hidden shadow-2xl flex items-center justify-center">
+              {/* Viewport Frame - with guaranteed minimum height and valid aspect ratio */}
+              <div className="relative w-full aspect-[4/3] min-h-[320px] sm:min-h-[360px] h-[340px] sm:h-[380px] rounded-3xl bg-slate-950 border-4 border-slate-700/80 overflow-hidden shadow-2xl flex items-center justify-center">
                 
                 {/* Live Hardware Video (Mirrored like a real mirror) */}
                 <video
@@ -595,6 +605,7 @@ export const QrKioskView = () => {
                   autoPlay
                   playsInline
                   muted
+                  onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
                   className={`absolute inset-0 w-full h-full object-cover transition duration-300 scale-x-[-1] ${
                     cameraActive ? 'block' : 'hidden'
                   } ${isScanning ? 'brightness-110 contrast-105' : 'brightness-95'}`}
@@ -602,22 +613,23 @@ export const QrKioskView = () => {
 
                 {/* Camera Inactive Fallback Art */}
                 {!cameraActive && (
-                  <div className="flex flex-col items-center justify-center p-6 text-slate-400 space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-slate-800/80 flex items-center justify-center text-amber-400 border border-slate-700">
+                  <div className="flex flex-col items-center justify-center p-6 text-slate-400 space-y-3 z-10">
+                    <div className="w-16 h-16 rounded-full bg-slate-800/80 flex items-center justify-center text-amber-400 border border-slate-700 animate-pulse">
                       <Camera className="w-8 h-8" />
                     </div>
                     <div className="space-y-1 text-center">
-                      <p className="text-xs font-bold text-white">Camera Offline or Permission Blocked</p>
+                      <p className="text-sm font-bold text-white">Camera Preview Offline</p>
                       <p className="text-[11px] text-slate-400 max-w-xs">
-                        Click 'Simulate Live Face Recognition' below to preview the instant touchless check-in flow.
+                        Allow camera permissions or click below to launch live touchless camera feed.
                       </p>
                     </div>
                     <button
+                      type="button"
                       onClick={startCamera}
-                      className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-95"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Retry Camera</span>
+                      <Video className="w-4 h-4" />
+                      <span>Start Camera Preview</span>
                     </button>
                   </div>
                 )}

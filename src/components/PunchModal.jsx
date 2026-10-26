@@ -209,6 +209,16 @@ export const PunchModal = () => {
     }
   };
 
+  // Ensure video element plays and receives stream whenever isCameraActive or punchType changes
+  useEffect(() => {
+    if (isCameraActive && streamRef.current && videoRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isCameraActive, punchType]);
+
   const stopCameraStream = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
@@ -622,7 +632,7 @@ export const PunchModal = () => {
               </div>
 
               {/* Viewfinder Container */}
-              <div className="relative w-full aspect-4/3 rounded-2xl bg-slate-950 border-2 border-slate-800 overflow-hidden shadow-inner flex items-center justify-center">
+              <div className="relative w-full aspect-[4/3] min-h-[280px] sm:min-h-[320px] rounded-2xl bg-slate-950 border-2 border-slate-800 overflow-hidden shadow-inner flex items-center justify-center">
                 
                 {/* Live Mirror Camera Video Feed */}
                 <video
@@ -630,6 +640,7 @@ export const PunchModal = () => {
                   autoPlay
                   playsInline
                   muted
+                  onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
                   className={`absolute inset-0 w-full h-full object-cover scale-x-[-1] transition duration-200 ${
                     isCameraActive && !selfieCaptured ? 'block' : 'hidden'
                   } ${isFaceDetected ? 'brightness-105' : 'brightness-90'}`}

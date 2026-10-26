@@ -192,7 +192,7 @@ export const FaceEnrollmentModal = ({ isOpen, onClose, employee }) => {
         </div>
 
         {/* Camera Viewport & HUD Overlay */}
-        <div className="relative aspect-4/3 w-full bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-800 flex items-center justify-center">
+        <div className="relative aspect-[4/3] min-h-[260px] sm:min-h-[300px] w-full bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-800 flex items-center justify-center">
           
           {/* Live Video Feed */}
           <video
@@ -200,6 +200,7 @@ export const FaceEnrollmentModal = ({ isOpen, onClose, employee }) => {
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
             className={`absolute inset-0 w-full h-full object-cover scale-x-[-1] ${
               capturedPhoto ? 'hidden' : 'block'
             }`}

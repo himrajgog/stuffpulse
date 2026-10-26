@@ -55,7 +55,7 @@ export const PunchInspectorModal = () => {
 
         {/* Verification Selfie Photo Card */}
         <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800 text-center space-y-2">
-          <div className="relative aspect-4/3 max-h-52 w-full rounded-xl overflow-hidden mx-auto bg-slate-950 flex items-center justify-center">
+          <div className="relative aspect-[4/3] h-48 max-h-52 w-full rounded-xl overflow-hidden mx-auto bg-slate-950 flex items-center justify-center">
             <img
               src={record.selfieUrl || employee?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400"}
               alt="Verification selfie"

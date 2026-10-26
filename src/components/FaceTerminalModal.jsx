@@ -164,7 +164,7 @@ export const FaceTerminalModal = () => {
         </div>
 
         {/* Viewfinder Camera Viewport */}
-        <div className="relative w-full aspect-4/3 rounded-2xl bg-slate-900 border-2 border-slate-800 overflow-hidden flex items-center justify-center">
+        <div className="relative w-full aspect-[4/3] min-h-[280px] sm:min-h-[320px] rounded-2xl bg-slate-900 border-2 border-slate-800 overflow-hidden flex items-center justify-center">
           
           {/* Live Video Feed (if hardware camera allowed) */}
           <video
@@ -172,6 +172,7 @@ export const FaceTerminalModal = () => {
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
             className={`absolute inset-0 w-full h-full object-cover transition duration-300 ${
               cameraActive && !capturedPhoto ? 'block' : 'hidden'
             } ${scanState === 'scanning' ? 'brightness-110 contrast-105' : 'brightness-95'}`}
