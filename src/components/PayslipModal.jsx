@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, numberToWords } from '../utils/dateUtils';
-import { downloadPayslipAsPDF } from '../utils/payslipPdfGenerator';
+import { downloadPayslipAsPDF, printPayslipDocument } from '../utils/payslipPdfGenerator';
 
 export const PayslipModal = () => {
   const { isPayslipModalOpen, setIsPayslipModalOpen, selectedPayslipData, company, employees, showToast } = useApp();
@@ -25,23 +25,22 @@ export const PayslipModal = () => {
   const employee = employees.find(e => e.id === data.employeeId) || {};
 
   const handlePrint = () => {
-    window.print();
+    printPayslipDocument('printable-payslip');
   };
 
   const handleDownloadPDF = async () => {
     if (isDownloadingPdf) return;
     setIsDownloadingPdf(true);
     try {
-      const res = await downloadPayslipAsPDF('printable-payslip', data, company);
+      const res = await downloadPayslipAsPDF(data, company, employee);
       if (res.success) {
-        if (showToast) showToast(`Downloaded ${res.fileName} successfully!`, 'success');
+        if (showToast) showToast(`Downloaded official ${res.fileName} successfully!`, 'success');
       } else {
-        if (showToast) showToast('Triggered print preview for PDF save', 'info');
+        printPayslipDocument('printable-payslip');
       }
     } catch (err) {
       console.error('Payslip PDF download failed:', err);
-      if (showToast) showToast('Opened print preview for PDF save', 'info');
-      window.print();
+      printPayslipDocument('printable-payslip');
     } finally {
       setIsDownloadingPdf(false);
     }

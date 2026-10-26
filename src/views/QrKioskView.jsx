@@ -67,6 +67,8 @@ export const QrKioskView = () => {
   const [lastScannedPunch, setLastScannedPunch] = useState(null);
   const [kioskDirection, setKioskDirection] = useState('SMART'); // 'SMART' | 'IN' | 'OUT'
   const [isBlinkTriggered, setIsBlinkTriggered] = useState(false);
+  const [handDetected, setHandDetected] = useState(false);
+  const [detectedStaff, setDetectedStaff] = useState(null);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -74,6 +76,8 @@ export const QrKioskView = () => {
   const scanIntervalRef = useRef(null);
   const prevFrameDataRef = useRef(null);
   const recentPunchMapRef = useRef(new Map());
+  const detectionStreakRef = useRef(0);
+  const currentCandidateIdRef = useRef(null);
 
   // Audio Chime using Web Audio API
   const playSuccessChime = () => {
@@ -207,13 +211,26 @@ export const QrKioskView = () => {
       ctx.drawImage(video, 0, 0, 160, 160);
       const frameData = ctx.getImageData(0, 0, 160, 160).data;
 
-      // Extract 128-D descriptor, landmarks & bounding box
-      const { descriptor, faceDetected, landmarks } = extractFaceDescriptor(canvas);
+      // Extract 128-D descriptor, facial topography & anti-hand detection
+      const faceResult = extractFaceDescriptor(canvas);
+      const { descriptor, faceDetected, handDetected: isHand, landmarks } = faceResult;
+
+      setHandDetected(isHand);
+
+      // CRITICAL: If a hand, palm, or obstruction is placed on the camera,
+      // IMMEDIATELY BLOCK punch and reset all matching states!
+      if (isHand) {
+        setIsScanning(false);
+        setDetectedStaff(null);
+        detectionStreakRef.current = 0;
+        currentCandidateIdRef.current = null;
+        return; // Hand on camera -> NEVER PUNCH!
+      }
 
       if (faceDetected) {
         setIsScanning(true);
 
-        // Anti-Spoofing & Eye Blink Detection
+        // Anti-Spoofing & Motion Detection
         let isLive = false;
         let isBlink = false;
         if (prevFrameDataRef.current) {
@@ -228,21 +245,42 @@ export const QrKioskView = () => {
         }
         prevFrameDataRef.current = frameData;
 
-        // Strict Anti-Spoof: Block punch if static image or screen photograph detected
+        // Block static photos / spoofing
         if (!isLive) {
           return;
         }
 
-        // Match against enrolled employees
-        const matchResult = matchLiveFace(descriptor, employees, 78);
+        // Match against enrolled employees with strict 84% confidence threshold
+        const matchResult = matchLiveFace(descriptor, employees, 84, faceResult);
         if (matchResult.matched && matchResult.bestEmployee) {
-          // Trigger when user blinks eyes in front of camera
-          if (isBlink) {
-            triggerSuccessfulFacePunch(matchResult.bestEmployee, matchResult.confidence, true);
+          const emp = matchResult.bestEmployee;
+          setDetectedStaff(emp);
+          setMatchConfidence(matchResult.confidence);
+
+          // Track consecutive matching frames for seamless automatic employee punch
+          if (currentCandidateIdRef.current === emp.id) {
+            detectionStreakRef.current += 1;
+          } else {
+            currentCandidateIdRef.current = emp.id;
+            detectionStreakRef.current = 1;
           }
+
+          // AUTOMATIC RECOGNITION PUNCH: Once verified steadily for 2 consecutive frames (~800ms) or blink
+          if (detectionStreakRef.current >= 2 || isBlink) {
+            detectionStreakRef.current = 0;
+            currentCandidateIdRef.current = null;
+            triggerSuccessfulFacePunch(emp, matchResult.confidence, isBlink);
+          }
+        } else {
+          setDetectedStaff(null);
+          detectionStreakRef.current = 0;
+          currentCandidateIdRef.current = null;
         }
       } else {
         setIsScanning(false);
+        setDetectedStaff(null);
+        detectionStreakRef.current = 0;
+        currentCandidateIdRef.current = null;
       }
     } catch (e) {
       console.warn('Frame processing exception:', e);
@@ -375,6 +413,8 @@ export const QrKioskView = () => {
       setMatchedStaff(null);
       setMatchedSnapshot(null);
       setMatchedShiftDuration('');
+      setDetectedStaff(null);
+      setHandDetected(false);
       setIsBlinkTriggered(false);
       setPunchCooldown(false);
       setIsScanning(false);
@@ -635,40 +675,73 @@ export const QrKioskView = () => {
                 )}
 
                 {/* ============================================================== */}
-                {/* DYNAMIC GREEN RECTANGLE BOUNDING BOX HUD OVER DETECTED FACE */}
+                {/* DYNAMIC SMART BOUNDING BOX HUD OVER DETECTED FACE OR HAND */}
                 {/* ============================================================== */}
                 {cameraActive && !matchedStaff && (
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
                     <div
                       className={`relative w-56 h-64 sm:w-64 sm:h-72 rounded-2xl transition-all duration-200 flex flex-col items-center justify-between p-3.5 ${
-                        isBlinkTriggered
+                        handDetected
+                          ? 'border-4 border-amber-500 bg-amber-500/20 shadow-[0_0_35px_rgba(245,158,11,0.8)] scale-102'
+                          : isBlinkTriggered
                           ? 'border-4 border-emerald-400 bg-emerald-500/30 shadow-[0_0_35px_rgba(16,185,129,0.8)] scale-105'
+                          : detectedStaff
+                          ? 'border-4 border-emerald-400 bg-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.7)] scale-102'
                           : isScanning
-                          ? 'border-2 border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.4)] animate-pulse'
+                          ? 'border-2 border-emerald-400 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.4)] animate-pulse'
                           : 'border-2 border-dashed border-emerald-400/40'
                       }`}
                     >
-                      {/* 4 Green Corner HUD Brackets */}
-                      <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
-                      <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
-                      <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
-                      <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+                      {/* 4 Corner HUD Brackets */}
+                      <div className={`absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 rounded-tl-lg ${handDetected ? 'border-amber-400' : 'border-emerald-400'}`} />
+                      <div className={`absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 rounded-tr-lg ${handDetected ? 'border-amber-400' : 'border-emerald-400'}`} />
+                      <div className={`absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 rounded-bl-lg ${handDetected ? 'border-amber-400' : 'border-emerald-400'}`} />
+                      <div className={`absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 rounded-br-lg ${handDetected ? 'border-amber-400' : 'border-emerald-400'}`} />
 
                       {/* Top HUD Badge */}
-                      <div className="flex items-center justify-between w-full text-[10px] font-mono text-emerald-300 bg-slate-950/85 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                        <span className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${isScanning ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`} />
-                          {isScanning ? '🟢 FACE LOCKED' : 'ALIGN FACE'}
+                      <div className={`flex items-center justify-between w-full text-[10px] font-mono px-2.5 py-1 rounded-full border shadow-sm ${
+                        handDetected
+                          ? 'bg-amber-950/90 text-amber-300 border-amber-500/50'
+                          : detectedStaff
+                          ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50'
+                          : 'bg-slate-950/85 text-emerald-300 border-emerald-500/30'
+                      }`}>
+                        <span className="flex items-center gap-1.5 truncate max-w-[180px]">
+                          {handDetected ? (
+                            <>
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span className="font-bold text-amber-300">OBSTRUCTION / HAND</span>
+                            </>
+                          ) : detectedStaff ? (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                              <span className="font-bold text-emerald-300 truncate">
+                                {detectedStaff.name.toUpperCase()}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className={`w-2 h-2 rounded-full ${isScanning ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`} />
+                              <span>{isScanning ? 'FACE LOCKED' : 'ALIGN FACE'}</span>
+                            </>
+                          )}
                         </span>
-                        <span className="text-emerald-400 font-bold">128-D AI</span>
+                        <span className="text-[9px] font-bold shrink-0 ml-1">
+                          {handDetected ? 'REJECTED' : detectedStaff ? `${matchConfidence}%` : '128-D AI'}
+                        </span>
                       </div>
 
                       {/* Scanning Laser Line */}
-                      {isScanning && !isBlinkTriggered && (
+                      {isScanning && !handDetected && !isBlinkTriggered && (
                         <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#10b981] animate-bounce" />
                       )}
 
-                      {/* Center Blink Confirmation Checkmark */}
+                      {/* Center Confirmation / Warning Icon */}
+                      {handDetected && (
+                        <div className="w-14 h-14 rounded-2xl bg-amber-500/90 text-slate-950 flex items-center justify-center shadow-xl animate-in zoom-in-75">
+                          <AlertCircle className="w-9 h-9" />
+                        </div>
+                      )}
                       {isBlinkTriggered && (
                         <div className="w-16 h-16 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-2xl animate-in zoom-in-75">
                           <CheckCircle2 className="w-10 h-10" />
@@ -676,9 +749,29 @@ export const QrKioskView = () => {
                       )}
 
                       {/* Bottom Guidance Tag */}
-                      <div className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-emerald-200 bg-slate-950/90 border border-emerald-500/40 shadow-sm flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                        <span>{isScanning ? 'Blink Eyes to Mark Attendance' : 'Position Face in Green Box'}</span>
+                      <div className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5 ${
+                        handDetected
+                          ? 'bg-amber-950/95 text-amber-200 border border-amber-500/50'
+                          : detectedStaff
+                          ? 'bg-emerald-950/95 text-emerald-200 border border-emerald-500/50'
+                          : 'bg-slate-950/90 text-emerald-200 border border-emerald-500/40'
+                      }`}>
+                        {handDetected ? (
+                          <>
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Camera Obstructed — Step Back</span>
+                          </>
+                        ) : detectedStaff ? (
+                          <>
+                            <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Verified • Auto-Marking Attendance...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                            <span>{isScanning ? 'Identifying Enrolled Face...' : 'Position Face in Green Box'}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -302,7 +302,15 @@ export const PunchModal = () => {
       const frameData = ctx.getImageData(0, 0, 160, 160).data;
 
       // Extract face descriptor & quality score
-      const { descriptor, faceDetected, qualityScore, landmarks } = extractFaceDescriptor(canvas);
+      const { descriptor, faceDetected, handDetected, qualityScore, landmarks } = extractFaceDescriptor(canvas);
+      
+      if (handDetected) {
+        setIsFaceDetected(false);
+        setFaceQuality(15);
+        prevFrameDataRef.current = null;
+        return; // Hand / camera obstruction detected -> NEVER punch!
+      }
+
       setIsFaceDetected(faceDetected);
       setFaceQuality(qualityScore);
 
@@ -310,7 +318,7 @@ export const PunchModal = () => {
         if (prevFrameDataRef.current) {
           const liveness = checkLivenessMotion(prevFrameDataRef.current, frameData, landmarks);
 
-          // Eye Blink detected!
+          // Eye Blink detected on a verified face!
           if (liveness.blinkDetected) {
             handleBlinkPunchTrigger(descriptor, qualityScore);
           }

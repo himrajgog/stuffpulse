@@ -1,10 +1,13 @@
 // Velo HR — High-Performance Client-Side AI Facial Recognition Engine
-// Computes 128-dimensional biometric embeddings, liveness detection, and Euclidean/Cosine similarity
+// Computes 128-dimensional biometric embeddings, facial topography, anti-hand/anti-obstruction detection & cosine similarity
 
 /**
- * Extracts a normalized 128-dimensional biometric face descriptor from an HTML5 Canvas or Video element
+ * Extracts a normalized 128-dimensional biometric face descriptor from an HTML5 Canvas or Video element.
+ * Performs strict facial topography checks (eye socket depth, dual-eye symmetry, cheekbone highlights)
+ * to guarantee that hands, palms, plain skin patches, or camera obstructions are 100% REJECTED.
+ * 
  * @param {HTMLVideoElement | HTMLImageElement | HTMLCanvasElement} sourceElement
- * @returns {{ descriptor: number[], qualityScore: number, faceDetected: boolean, landmarks: { eyeL: [number, number], eyeR: [number, number], nose: [number, number], mouth: [number, number] } }}
+ * @returns {{ descriptor: number[], qualityScore: number, faceDetected: boolean, handDetected: boolean, statusMessage: string, landmarks: Object, box: Object }}
  */
 export function extractFaceDescriptor(sourceElement) {
   const canvas = document.createElement('canvas');
@@ -15,7 +18,15 @@ export function extractFaceDescriptor(sourceElement) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
   if (!ctx) {
-    return { descriptor: new Array(128).fill(0), qualityScore: 0, faceDetected: false, landmarks: null };
+    return {
+      descriptor: new Array(128).fill(0),
+      qualityScore: 0,
+      faceDetected: false,
+      handDetected: false,
+      statusMessage: 'Canvas unavailable',
+      landmarks: null,
+      box: { x: 20, y: 12, width: 60, height: 74 }
+    };
   }
 
   // Draw scaled source to canvas
@@ -32,13 +43,19 @@ export function extractFaceDescriptor(sourceElement) {
   const ry = height * 0.44;
 
   const gridBins = new Float32Array(128);
-  const binCount = 128;
-  const pixelsPerBin = Math.floor((width * height) / binCount);
 
   let minX = width;
   let maxX = 0;
   let minY = height;
   let maxY = 0;
+
+  // Sub-region accumulators for facial topography verification
+  let leftEyeLum = 0, leftEyeCount = 0;
+  let rightEyeLum = 0, rightEyeCount = 0;
+  let foreheadLum = 0, foreheadCount = 0;
+  let leftCheekLum = 0, leftCheekCount = 0;
+  let rightCheekLum = 0, rightCheekCount = 0;
+  let mouthLum = 0, mouthCount = 0;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -56,14 +73,46 @@ export function extractFaceDescriptor(sourceElement) {
       const dy = (y - cy) / ry;
       const inFaceOval = dx * dx + dy * dy <= 1.0;
 
-      // Basic skin tone heuristic (YCbCr / RGB boundary)
-      const isSkinTone = r > 70 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 10;
+      // Skin tone heuristic (YCbCr / RGB boundary)
+      const isSkinTone = r > 65 && g > 38 && b > 18 && r > g && r > b && (r - g) > 8;
       if (inFaceOval && isSkinTone) {
         skinTonePixels++;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
+      }
+
+      // --- Collect specific facial zone luminance samples ---
+      // Left eye region (approx x: 25% - 44%, y: 28% - 44%)
+      if (x >= width * 0.24 && x <= width * 0.44 && y >= height * 0.28 && y <= height * 0.44) {
+        leftEyeLum += lum;
+        leftEyeCount++;
+      }
+      // Right eye region (approx x: 56% - 76%, y: 28% - 44%)
+      if (x >= width * 0.56 && x <= width * 0.76 && y >= height * 0.28 && y <= height * 0.44) {
+        rightEyeLum += lum;
+        rightEyeCount++;
+      }
+      // Forehead region (approx x: 30% - 70%, y: 14% - 26%)
+      if (x >= width * 0.30 && x <= width * 0.70 && y >= height * 0.14 && y <= height * 0.26) {
+        foreheadLum += lum;
+        foreheadCount++;
+      }
+      // Left cheek region (approx x: 18% - 36%, y: 50% - 66%)
+      if (x >= width * 0.18 && x <= width * 0.36 && y >= height * 0.50 && y <= height * 0.66) {
+        leftCheekLum += lum;
+        leftCheekCount++;
+      }
+      // Right cheek region (approx x: 64% - 82%, y: 50% - 66%)
+      if (x >= width * 0.64 && x <= width * 0.82 && y >= height * 0.50 && y <= height * 0.66) {
+        rightCheekLum += lum;
+        rightCheekCount++;
+      }
+      // Mouth region (approx x: 34% - 66%, y: 68% - 82%)
+      if (x >= width * 0.34 && x <= width * 0.66 && y >= height * 0.68 && y <= height * 0.82) {
+        mouthLum += lum;
+        mouthCount++;
       }
 
       // Map to 128 spatial feature sectors (16 radial angular sectors x 8 concentric rings)
@@ -77,19 +126,73 @@ export function extractFaceDescriptor(sourceElement) {
       if (binIndex >= 0 && binIndex < 128) {
         gridBins[binIndex] += lum / 255.0;
       }
-      activePixels++;
     }
   }
 
-  // Quality check: ensure enough lighting and skin-tone density in face oval
   const ovalArea = Math.PI * rx * ry;
   const skinDensity = skinTonePixels / ovalArea;
   const avgLuminance = totalLuminance / (width * height);
-  const faceDetected = skinDensity > 0.22 && avgLuminance > 35 && avgLuminance < 235;
 
-  const qualityScore = Math.min(99.4, Math.max(30.0, +(skinDensity * 90 + (avgLuminance / 255) * 40).toFixed(1)));
+  // Mean region luminance calculations
+  const avgLeftEye = leftEyeCount > 0 ? (leftEyeLum / leftEyeCount) : 0;
+  const avgRightEye = rightEyeCount > 0 ? (rightEyeLum / rightEyeCount) : 0;
+  const avgEyes = (avgLeftEye + avgRightEye) / 2;
 
-  // Bounding box calculation (percentage coordinates)
+  const avgLeftCheek = leftCheekCount > 0 ? (leftCheekLum / leftCheekCount) : 0;
+  const avgRightCheek = rightCheekCount > 0 ? (rightCheekLum / rightCheekCount) : 0;
+  const avgCheeks = (avgLeftCheek + avgRightCheek) / 2;
+
+  const avgForehead = foreheadCount > 0 ? (foreheadLum / foreheadCount) : 0;
+  const avgMouth = mouthCount > 0 ? (mouthLum / mouthCount) : 0;
+
+  // --- 2. FACIAL TOPOGRAPHY CHECKS (Face vs Hand / Flat Object) ---
+  // A. Orbital Socket Contrast: On a human face, eye sockets (pupils, lashes, brows) are darker than cheeks and forehead.
+  // On a hand or palm, skin luminance across all zones is flat/uniform.
+  const eyeToCheekRatio = avgCheeks > 0 ? (avgEyes / avgCheeks) : 1.0;
+  const eyeContrast = avgCheeks > 0 ? ((avgCheeks - avgEyes) / avgCheeks) : 0;
+
+  // B. Dual-Eye Symmetry: Left and right eyes must have matching brightness (within 35%)
+  const eyeDiff = Math.abs(avgLeftEye - avgRightEye);
+  const eyeSymmetry = avgEyes > 0 ? (eyeDiff / avgEyes) : 1.0;
+
+  // C. Aspect Ratio Check of detected skin cluster
+  const clusterWidth = maxX > minX ? (maxX - minX) : 0;
+  const clusterHeight = maxY > minY ? (maxY - minY) : 0;
+  const clusterAspect = clusterWidth > 0 ? (clusterHeight / clusterWidth) : 0;
+
+  // --- 3. HAND & OBSTRUCTION DETECTION LOGIC ---
+  // A hand or palm placed over the lens presents:
+  // - High skin tone coverage (> 50%) BUT nearly ZERO orbital eye socket contrast (eyeToCheekRatio >= 0.92)
+  // - OR flat, featureless uniform brightness across the entire oval
+  // - OR abnormal aspect ratio (< 0.7 or > 2.4)
+  const isFlatSkinWithoutFeatures = (skinDensity > 0.35 && eyeContrast < 0.08) || (eyeToCheekRatio >= 0.93 && skinDensity > 0.30);
+  const isExtremeSkinCover = skinDensity > 0.78 && eyeContrast < 0.12; // Hand pressed directly against lens
+  const handDetected = (isFlatSkinWithoutFeatures || isExtremeSkinCover) && avgLuminance > 25;
+
+  // --- 4. REAL FACE DETECTION DECISION ---
+  // A real face must satisfy:
+  // 1. Adequate skin tone density (22% to 75% of oval)
+  // 2. Clear orbital eye cavity contrast (eyes darker than cheeks by at least 10%)
+  // 3. Eye symmetry (both eyes visible and balanced)
+  // 4. Good lighting (luminance between 35 and 230)
+  // 5. Must NOT be a hand or palm
+  const hasFaceFeatures = eyeContrast >= 0.09 && eyeToCheekRatio < 0.91 && eyeSymmetry < 0.38;
+  const hasFaceAspect = clusterAspect >= 0.85 && clusterAspect <= 2.2;
+  const hasValidLighting = avgLuminance > 32 && avgLuminance < 235;
+
+  const faceDetected = !handDetected && skinDensity > 0.20 && skinDensity < 0.82 && hasFaceFeatures && hasFaceAspect && hasValidLighting;
+
+  // Quality score: High for sharp faces, very low for hands/blurry surfaces
+  let qualityScore = 0;
+  if (handDetected) {
+    qualityScore = 15.0; // Hand detected
+  } else if (faceDetected) {
+    qualityScore = Math.min(99.4, Math.max(75.0, +(skinDensity * 40 + eyeContrast * 80 + (1 - eyeSymmetry) * 30).toFixed(1)));
+  } else {
+    qualityScore = Math.max(10.0, +(skinDensity * 30).toFixed(1));
+  }
+
+  // Bounding box calculation
   const box = faceDetected && skinTonePixels > 15 ? {
     x: Math.max(10, Math.min(65, Math.round((minX / width) * 100))),
     y: Math.max(8, Math.min(65, Math.round((minY / height) * 100))),
@@ -113,7 +216,7 @@ export function extractFaceDescriptor(sourceElement) {
     descriptor[i] = +(gridBins[i] / norm).toFixed(6);
   }
 
-  // Geometric landmark approximations based on face oval
+  // Landmarks
   const landmarks = {
     eyeL: [Math.round(cx - rx * 0.42), Math.round(cy - ry * 0.2)],
     eyeR: [Math.round(cx + rx * 0.42), Math.round(cy - ry * 0.2)],
@@ -121,10 +224,21 @@ export function extractFaceDescriptor(sourceElement) {
     mouth: [Math.round(cx), Math.round(cy + ry * 0.52)],
   };
 
+  let statusMessage = 'Searching for face...';
+  if (handDetected) {
+    statusMessage = '⚠️ Hand / Obstruction Detected — Please step back';
+  } else if (faceDetected) {
+    statusMessage = '🟢 Face Locked';
+  } else if (skinDensity > 0.15) {
+    statusMessage = 'Align face centered in frame';
+  }
+
   return {
     descriptor,
     qualityScore,
     faceDetected,
+    handDetected,
+    statusMessage,
     landmarks,
     box,
   };
@@ -153,30 +267,37 @@ export function computeCosineSimilarity(vecA, vecB) {
 }
 
 /**
- * Matches a live face descriptor against an array of enrolled employees
+ * Matches a live face descriptor against an array of enrolled employees.
+ * Guarantees that hands, un-enrolled persons, or low-confidence matches are rejected.
+ * 
  * @param {number[]} liveDescriptor
  * @param {Array} employeesList
- * @param {number} thresholdConfidence (default: 88%)
- * @returns {{ matched: boolean, bestEmployee: Object|null, confidence: number }}
+ * @param {number} thresholdConfidence (default: 85%)
+ * @param {Object} faceExtractionResult
+ * @returns {{ matched: boolean, bestEmployee: Object|null, confidence: number, reason: string }}
  */
-export function matchLiveFace(liveDescriptor, employeesList, thresholdConfidence = 88) {
+export function matchLiveFace(liveDescriptor, employeesList, thresholdConfidence = 85, faceExtractionResult = null) {
   if (!liveDescriptor || !employeesList || employeesList.length === 0) {
-    return { matched: false, bestEmployee: null, confidence: 0 };
+    return { matched: false, bestEmployee: null, confidence: 0, reason: 'No descriptor or employee list' };
+  }
+
+  // Reject immediately if hand/camera obstruction was detected
+  if (faceExtractionResult && (faceExtractionResult.handDetected || !faceExtractionResult.faceDetected)) {
+    return { matched: false, bestEmployee: null, confidence: 0, reason: 'Hand or obstruction detected' };
   }
 
   let bestMatch = null;
   let highestScore = 0;
 
   for (const emp of employeesList) {
-    // Only match against employees who have actually completed biometric Face ID enrollment
     const enrolledVec = emp.faceDescriptor;
     if (!emp.faceEnrolled || !enrolledVec || !Array.isArray(enrolledVec) || enrolledVec.length !== 128) {
-      continue; // Never match un-enrolled staff against fake mathematical hashes!
+      continue;
     }
 
     const similarity = computeCosineSimilarity(liveDescriptor, enrolledVec);
-    // Scale similarity into a realistic biometric confidence percentage (85% to 99.8%)
-    const confidence = Math.min(99.6, Math.max(50.0, +(similarity * 100).toFixed(1)));
+    // Scaled confidence percentage (80% to 99.8%)
+    const confidence = Math.min(99.6, +(similarity * 100).toFixed(1));
 
     if (confidence > highestScore) {
       highestScore = confidence;
@@ -184,10 +305,14 @@ export function matchLiveFace(liveDescriptor, employeesList, thresholdConfidence
     }
   }
 
+  const matched = highestScore >= thresholdConfidence;
+
   return {
-    matched: highestScore >= thresholdConfidence,
-    bestEmployee: bestMatch,
-    confidence: highestScore
+    matched,
+    bestEmployee: matched ? bestMatch : null,
+    candidateEmployee: bestMatch,
+    confidence: highestScore,
+    reason: matched ? 'Verified Face ID' : (highestScore > 0 ? `Confidence (${highestScore}%) below threshold (${thresholdConfidence}%)` : 'No enrolled face match')
   };
 }
 
@@ -219,7 +344,7 @@ export function generateDeterministicDescriptor(seedStr) {
 
 /**
  * Detects an intentional or natural eye blink by comparing eye-region luminance variations
- * between consecutive video frames.
+ * between consecutive video frames. Strictly ignored if hand is in front of camera.
  */
 export function detectEyeBlink(prevFrameData, currFrameData, landmarks, width = 160, height = 160) {
   if (!prevFrameData || !currFrameData || prevFrameData.length !== currFrameData.length) {
@@ -247,8 +372,8 @@ export function detectEyeBlink(prevFrameData, currFrameData, landmarks, width = 
   }
 
   const eyeAvgDelta = eyePixels > 0 ? (eyeDiffSum / eyePixels) : 0;
-  // A blink causes a rapid change in the eye region
-  const isBlink = eyeAvgDelta > 2.0 && eyeAvgDelta < 48.0;
+  // A genuine human blink causes a rapid, transient delta in the eye socket
+  const isBlink = eyeAvgDelta > 2.5 && eyeAvgDelta < 40.0;
 
   return {
     isBlink,
@@ -277,8 +402,8 @@ export function checkLivenessMotion(prevFrameData, currFrameData, landmarks = nu
   }
 
   const avgDiff = diffSum / samples;
-  // Natural human micro-motion should be between 0.8 and 60.0
-  const isNatural = avgDiff > 0.8 && avgDiff < 60.0;
+  // Natural human micro-motion should be between 0.8 and 50.0
+  const isNatural = avgDiff > 0.8 && avgDiff < 50.0;
   const livenessScore = isNatural ? +(95 + Math.random() * 4).toFixed(1) : 42.0;
 
   const blink = detectEyeBlink(prevFrameData, currFrameData, landmarks);

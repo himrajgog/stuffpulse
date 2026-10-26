@@ -30,22 +30,13 @@
 
 /* Print styles specifically for Payslip generation */
 @media print {
-  body * {
-    visibility: hidden;
+  @page {
+    size: A4;
+    margin: 10mm;
   }
-  #printable-payslip, #printable-payslip * {
-    visibility: visible;
-  }
-  #printable-payslip {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 24px;
+  body {
     background: white !important;
-    box-shadow: none !important;
-    border: none !important;
+    color: #0f172a !important;
   }
   .no-print {
     display: none !important;
