@@ -12,13 +12,13 @@ export const AppProvider = ({ children }) => {
   // Navigation & View Mode: 'landing' | 'login' | 'app' | 'superadmin' | 'payroll_onboarding' | 'coming_soon'
   const [appMode, setAppMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      const hash = window.location.hash;
-      if (hash === '#kiosk' || hash === '#terminal') return 'kiosk';
-      if (hash === '#login') return 'login';
-      if (hash === '#app' || hash === '#workspace') return 'app';
-      if (hash === '#superadmin') return 'superadmin';
-      if (hash === '#onboarding' || hash === '#pricing') return 'payroll_onboarding';
-      if (hash && (hash.includes('features') || hash.includes('pricing') || hash.includes('compliance') || hash.includes('landing'))) {
+      const hash = (window.location.hash || '').toLowerCase();
+      if (hash.includes('kiosk') || hash.includes('terminal')) return 'kiosk';
+      if (hash.includes('login') || hash.includes('signin')) return 'login';
+      if (hash.includes('superadmin') || hash.includes('master')) return 'superadmin';
+      if (hash.includes('onboarding') || hash.includes('pricing')) return 'payroll_onboarding';
+      if (hash.includes('app') || hash.includes('workspace')) return 'app';
+      if (hash.includes('features') || hash.includes('compliance') || hash.includes('landing')) {
         return 'landing';
       }
       const saved = localStorage.getItem('velohr_app_mode');
@@ -29,18 +29,18 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     const handleHash = () => {
-      const hash = window.location.hash;
-      if (hash === '#kiosk' || hash === '#terminal') {
+      const hash = (window.location.hash || '').toLowerCase();
+      if (hash.includes('kiosk') || hash.includes('terminal')) {
         setAppMode('kiosk');
-      } else if (hash === '#login') {
+      } else if (hash.includes('login') || hash.includes('signin')) {
         setAppMode('login');
-      } else if (hash === '#app' || hash === '#workspace') {
-        setAppMode('app');
-      } else if (hash === '#superadmin') {
+      } else if (hash.includes('superadmin') || hash.includes('master')) {
         setAppMode('superadmin');
-      } else if (hash === '#onboarding') {
+      } else if (hash.includes('onboarding')) {
         setAppMode('payroll_onboarding');
-      } else if (hash === '#landing' || hash === '' || hash.includes('features') || hash.includes('pricing') || hash.includes('compliance')) {
+      } else if (hash.includes('app') || hash.includes('workspace')) {
+        setAppMode('app');
+      } else if (hash.includes('landing') || hash === '' || hash === '#' || hash.includes('features') || hash.includes('compliance')) {
         setAppMode('landing');
       }
     };
