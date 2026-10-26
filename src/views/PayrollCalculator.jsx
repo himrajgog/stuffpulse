@@ -478,10 +478,10 @@ export const PayrollCalculator = () => {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => openPayslip(empObj, selectedMonth, selectedYear)}
-                            title="View & Print PDF Payslip"
+                            title="View & Download PDF Payslip"
                             className="inline-flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
                           >
-                            <Printer className="w-3 h-3 text-emerald-400" />
+                            <Download className="w-3 h-3 text-emerald-400" />
                             <span>Payslip</span>
                           </button>
 

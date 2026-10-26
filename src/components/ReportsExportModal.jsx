@@ -30,17 +30,29 @@ export const ReportsExportModal = ({ isOpen, onClose, defaultReport = 'payroll' 
     company,
     selectedMonth,
     selectedYear,
-    showToast
+    showToast,
+    openPayslip
   } = useApp();
 
-  const [selectedReportType, setSelectedReportType] = useState(defaultReport); // 'payroll' | 'attendance' | 'bank' | 'statutory'
+  const [selectedReportType, setSelectedReportType] = useState(defaultReport); // 'payroll' | 'attendance' | 'bank' | 'statutory' | 'payslip'
   const [reportMonth, setReportMonth] = useState(selectedMonth);
   const [reportYear, setReportYear] = useState(selectedYear);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0]?.id || '');
 
   if (!isOpen) return null;
 
   const handleExport = () => {
     const monthName = getMonthName(reportMonth - 1);
+
+    if (selectedReportType === 'payslip') {
+      const emp = employees.find(e => e.id === selectedEmployeeId) || employees[0];
+      if (emp) {
+        openPayslip(emp, reportMonth, reportYear);
+        showToast(`Loaded ${emp.name}'s payslip ready for PDF download!`, 'success');
+      }
+      onClose();
+      return;
+    }
 
     if (selectedReportType === 'attendance') {
       downloadMonthlyAttendanceCSV({
@@ -107,6 +119,14 @@ export const ReportsExportModal = ({ isOpen, onClose, defaultReport = 'payroll' 
       icon: FileSpreadsheet,
       badge: 'Most Popular',
       color: 'text-blue-600 bg-blue-50 border-blue-200',
+    },
+    {
+      id: 'payslip',
+      title: 'Individual Employee Payslip (PDF)',
+      desc: 'Official monthly payslip with earnings, deductions, bank transfer advice, and digital verification seal.',
+      icon: FileText,
+      badge: 'Official PDF',
+      color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
     },
     {
       id: 'attendance',
@@ -187,6 +207,26 @@ export const ReportsExportModal = ({ isOpen, onClose, defaultReport = 'payroll' 
           </div>
         </div>
 
+        {/* Staff Member Selector (Shown if Payslip is selected) */}
+        {selectedReportType === 'payslip' && (
+          <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
+              Staff Member:
+            </span>
+            <select
+              value={selectedEmployeeId}
+              onChange={(e) => setSelectedEmployeeId(e.target.value)}
+              className="bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer sm:w-64"
+            >
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name} ({emp.designation || 'Staff'} - {emp.id})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Report Type Selector List */}
         <div className="space-y-2.5">
           <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -244,10 +284,14 @@ export const ReportsExportModal = ({ isOpen, onClose, defaultReport = 'payroll' 
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer ${
+              selectedReportType === 'payslip'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-600/20'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-indigo-600/20'
+            }`}
           >
             <Download className="w-4 h-4" />
-            <span>Download CSV Statement</span>
+            <span>{selectedReportType === 'payslip' ? 'View & Download Payslip PDF' : 'Download CSV Statement'}</span>
           </button>
         </div>
 

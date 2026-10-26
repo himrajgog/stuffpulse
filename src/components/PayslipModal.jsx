@@ -1,5 +1,4 @@
-// Downloadable & Printable Payslip Modal
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Printer,
@@ -9,13 +8,16 @@ import {
   CheckCircle2,
   ShieldCheck,
   CreditCard,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, numberToWords } from '../utils/dateUtils';
+import { downloadPayslipAsPDF } from '../utils/payslipPdfGenerator';
 
 export const PayslipModal = () => {
-  const { isPayslipModalOpen, setIsPayslipModalOpen, selectedPayslipData, company, employees } = useApp();
+  const { isPayslipModalOpen, setIsPayslipModalOpen, selectedPayslipData, company, employees, showToast } = useApp();
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   if (!isPayslipModalOpen || !selectedPayslipData) return null;
 
@@ -24,6 +26,25 @@ export const PayslipModal = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPDF = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    try {
+      const res = await downloadPayslipAsPDF('printable-payslip', data, company);
+      if (res.success) {
+        if (showToast) showToast(`Downloaded ${res.fileName} successfully!`, 'success');
+      } else {
+        if (showToast) showToast('Triggered print preview for PDF save', 'info');
+      }
+    } catch (err) {
+      console.error('Payslip PDF download failed:', err);
+      if (showToast) showToast('Opened print preview for PDF save', 'info');
+      window.print();
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   return (
@@ -43,17 +64,36 @@ export const PayslipModal = () => {
             <span>Official Salary Statement • {data.monthName} {data.year}</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-75 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer"
+              title="Download official PDF directly to device"
+            >
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-white" />
+                  <span>Download PDF</span>
+                </>
+              )}
+            </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 shadow-xs transition cursor-pointer"
+              title="Print document or save via OS dialog"
             >
-              <Printer className="w-4 h-4" />
-              <span>Print / Save as PDF</span>
+              <Printer className="w-4 h-4 text-slate-300" />
+              <span className="hidden sm:inline">Print</span>
             </button>
             <button
               onClick={() => setIsPayslipModalOpen(false)}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -285,10 +325,22 @@ export const PayslipModal = () => {
               </p>
             </div>
 
-            <div className="text-right space-y-1">
-              <div className="h-8 border-b border-dashed border-slate-400 w-36 ml-auto" />
-              <p className="font-bold text-slate-800 text-[11px]">Authorized Signatory</p>
-              <p className="text-[10px] text-slate-400">Finance & Payroll Dept.</p>
+            <div className="flex items-center gap-4 ml-auto">
+              <div className="flex flex-col items-center justify-center p-2 px-3 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/70 text-[10px] text-emerald-800">
+                <div className="flex items-center gap-1 font-bold uppercase tracking-wider">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Digitally Verified</span>
+                </div>
+                <span className="text-[9px] text-emerald-600 font-mono mt-0.5">
+                  Ref: PAY-{data.year}-{data.employeeId}
+                </span>
+              </div>
+
+              <div className="text-right space-y-1">
+                <div className="h-8 border-b border-dashed border-slate-400 w-32 ml-auto" />
+                <p className="font-bold text-slate-800 text-[11px]">Authorized Signatory</p>
+                <p className="text-[10px] text-slate-400">Finance & Payroll Dept.</p>
+              </div>
             </div>
           </div>
 
@@ -297,21 +349,40 @@ export const PayslipModal = () => {
         {/* Bottom Action Footer (Hidden when printing) */}
         <div className="no-print p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
           <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-            Print layout is optimized for A4 paper and PDF downloads
+            Downloaded PDF is formatted in standard A4 with official stamp and company details
           </span>
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2.5 ml-auto">
             <button
               onClick={() => setIsPayslipModalOpen(false)}
-              className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition"
+              className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition cursor-pointer"
             >
-              Close Statement
+              Close
             </button>
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              title="Print via browser dialog"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print / Download</span>
+              <Printer className="w-3.5 h-3.5 text-slate-700" />
+              <span>Print</span>
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPdf}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-75 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              title="Download official PDF directly to device"
+            >
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </>
+              )}
             </button>
           </div>
         </div>
